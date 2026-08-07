@@ -1,0 +1,49 @@
+# --- Environment ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Node / Frontend ---
+node_modules/
+apps/web/dist/
+apps/web/dist-ssr/
+packages/*/dist/
+*.local
+.vite/
+*.tsbuildinfo
+
+# --- Python / Backend ---
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+apps/api/.venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# --- Docker / infra volumes ---
+infra/docker/volumes/
+
+# --- Cloned repositories (host-run dev) ---
+apps/api/.data/
+
+# --- Editors / OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# --- Claude Code local settings (machine-specific permissions) ---
+.claude/settings.local.json

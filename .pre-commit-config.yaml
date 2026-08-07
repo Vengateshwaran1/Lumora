@@ -1,0 +1,55 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # --- Backend (apps/api) — run via the project's own uv-managed venv ---
+  - repo: local
+    hooks:
+      - id: ruff-api
+        name: ruff (apps/api)
+        entry: uv run --project apps/api ruff check --fix
+        language: system
+        files: ^apps/api/
+        types: [python]
+
+      - id: black-api
+        name: black (apps/api)
+        entry: uv run --project apps/api black
+        language: system
+        files: ^apps/api/
+        types: [python]
+
+      - id: mypy-api
+        name: mypy (apps/api)
+        entry: uv run --project apps/api mypy .
+        language: system
+        files: ^apps/api/
+        types: [python]
+        pass_filenames: false
+
+  # --- Frontend (apps/web) — run via the project's own node_modules ---
+  - repo: local
+    hooks:
+      - id: eslint-web
+        name: eslint (apps/web)
+        entry: npm --prefix apps/web run lint:fix
+        language: system
+        files: ^apps/web/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      - id: prettier-web
+        name: prettier (apps/web)
+        entry: npm --prefix apps/web run format
+        language: system
+        files: ^apps/web/
+        pass_filenames: false
