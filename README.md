@@ -5,17 +5,21 @@ GitHub repository, answers questions about it with cited sources (RAG),
 plans and implements issues, reviews pull requests, runs tests, and debugs
 failures — orchestrated by a supervisor of specialized LangGraph agents.
 
-This repository is currently at **Milestone 0 — Foundations**: the monorepo
-scaffold, toolchains, and local dev environment. No product features
-(RAG, agents, GitHub integration, auth) are implemented yet — see
-[Roadmap](#roadmap) below.
+This repository is currently at **Milestone 1 — Repository Ingestion &
+RAG**: connect a repo, clone it, chunk it with AST-aware parsing, embed and
+index it, and answer questions about it with file/line citations. Coding
+agents, planning agents, PR generation, and auth are not implemented yet —
+see [Roadmap](#roadmap) below.
 
 ## Architecture Summary
 
 Full design, including diagrams, alternatives considered, and trade-offs
 for every decision, lives in
 [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md).
-The short version:
+Per-milestone implementation decisions (where a milestone deliberately
+simplifies the top-level design, and why) live in their own docs — see
+[`docs/architecture/milestone-1-rag-pipeline.md`](docs/architecture/milestone-1-rag-pipeline.md)
+for Milestone 1. The short version of the overall architecture:
 
 - **Backend**: FastAPI, layered as Clean Architecture (`api → application →
   domain`, with `infrastructure` implementing ports). Agent orchestration
@@ -123,10 +127,79 @@ npm install
 npm run dev --workspace apps/web
 ```
 
+## Repository Ingestion & RAG
+
+By default, indexing and chat work **with zero setup** — no Ollama, no
+model downloads, fully offline beyond cloning the target repo:
+`EMBEDDING_PROVIDER=deterministic` (hash-seeded vectors — real, working,
+but not semantically meaningful) and `CHAT_PROVIDER=extractive` (a
+citation list, not generated prose). This is what `docker compose up`
+gives you immediately. See
+[milestone-1-rag-pipeline.md](docs/architecture/milestone-1-rag-pipeline.md)
+for why.
+
+### Try it
+
+```bash
+# Register a (public) repo — this only stores the URL, it doesn't clone yet
+curl -X POST http://localhost:8000/api/v1/repositories \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://github.com/octocat/Hello-World"}'
+# → {"id": "...", "status": "pending", ...}
+
+# Trigger clone + index (runs in the background; poll /status)
+curl -X POST http://localhost:8000/api/v1/repositories/<id>/index
+
+curl http://localhost:8000/api/v1/repositories/<id>/status
+
+# Hybrid search — dense + BM25, fused, with file/line citations
+curl -X POST http://localhost:8000/api/v1/repositories/<id>/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "hello world", "top_k": 5}'
+
+# RAG chat — retrieval + an answer grounded in what was retrieved
+curl -X POST http://localhost:8000/api/v1/repositories/<id>/chat \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What does this repo do?"}'
+```
+
+### Switching to real Ollama-backed embeddings and chat
+
+1. Install [Ollama](https://ollama.com/) and start it (`ollama serve`, or
+   the desktop app — it listens on `localhost:11434` by default).
+2. Pull the default models (or set `OLLAMA_EMBEDDING_MODEL` /
+   `OLLAMA_CHAT_MODEL` to your own choice):
+   ```bash
+   ollama pull nomic-embed-text
+   ollama pull qwen3
+   ```
+3. Set `EMBEDDING_PROVIDER=ollama` and `CHAT_PROVIDER=ollama`:
+   - **Docker Compose**: add both to your root `.env`, then
+     `docker compose up --build` — the API container reaches your host's
+     Ollama via `host.docker.internal` automatically (see
+     `docker-compose.yml`'s `extra_hosts`).
+   - **Host-run dev**: set them in `apps/api/.env` (which already points
+     `OLLAMA_BASE_URL` at `http://localhost:11434`).
+4. Re-index existing repos (`POST .../index` again) — vectors from the
+   deterministic provider aren't compatible with real embeddings, and
+   `ensure_collection` sizes the Qdrant collection from whichever
+   provider's dimensions it sees first.
+
+Optionally, `RERANKER_PROVIDER=cross_encoder` enables a
+sentence-transformers cross-encoder reranking pass — downloads model
+weights from Hugging Face on first use, so it's opt-in rather than default
+(see the pipeline doc for why).
+
 ## Development Workflow
 
 All commands below assume dependencies are installed (`uv sync` in
-`apps/api`, `npm install` at the repo root).
+`apps/api`, `npm install` at the repo root). Backend tests need Postgres
+and Qdrant running (`docker compose up -d postgres qdrant` from the repo
+root is enough — the API/web containers aren't needed) and migrations
+applied (`docker compose run --rm migrate`, or `uv run alembic upgrade
+head` from `apps/api` for host-run dev); they do **not** need Ollama —
+the suite uses the deterministic embedding provider and mocks Ollama's
+HTTP API for the provider-specific unit tests.
 
 | Check              | Backend (`apps/api`)      | Frontend (`apps/web`, run from repo root or with `--workspace apps/web`) |
 | ------------------ | -------------------------- | -------------------------------------------------------------------------- |
@@ -160,7 +233,7 @@ Sequenced by risk retired — see
 for the full breakdown and verification gates.
 
 - [x] **M0 — Foundations**: monorepo, toolchains, Docker Compose dev stack, CI
-- [ ] **M1 — Vertical slice**: index one repo → cited Q&A, with a retrieval eval harness
+- [x] **M1 — Vertical slice**: index one repo → cited Q&A
 - [ ] **M2 — Incremental indexing**: webhooks, diff-based re-index
 - [ ] **M3 — Planning agent**: issue → structured implementation plan
 - [ ] **M4 — Sandboxed execution**: Coding/Test/Debug agents, approval gate

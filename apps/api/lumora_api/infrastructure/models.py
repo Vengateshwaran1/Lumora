@@ -35,9 +35,7 @@ class Repository(Base):
     name: Mapped[str] = mapped_column(String(255))
     default_branch: Mapped[str | None] = mapped_column(String(255), default=None)
     local_path: Mapped[str | None] = mapped_column(String(1024), default=None)
-    status: Mapped[RepositoryStatus] = mapped_column(
-        String(20), default=RepositoryStatus.PENDING
-    )
+    status: Mapped[RepositoryStatus] = mapped_column(String(20), default=RepositoryStatus.PENDING)
     last_indexed_commit: Mapped[str | None] = mapped_column(String(40), default=None)
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
     indexed_file_count: Mapped[int] = mapped_column(default=0)
@@ -74,9 +72,7 @@ class IndexedFile(Base):
 
 class Chunk(Base):
     __tablename__ = "chunks"
-    __table_args__ = (
-        Index("ix_chunk_repository_content_hash", "repository_id", "content_hash"),
-    )
+    __table_args__ = (Index("ix_chunk_repository_content_hash", "repository_id", "content_hash"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     repository_id: Mapped[uuid.UUID] = mapped_column(

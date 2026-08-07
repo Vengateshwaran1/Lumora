@@ -29,6 +29,7 @@ dev = [
   "pytest>=8.3",
   "pytest-asyncio>=0.24",
   "httpx>=0.27",
+  "types-pyyaml>=6.0.12.20260724",
 ]
 
 [build-system]
@@ -72,10 +73,34 @@ plugins = ["pydantic.mypy"]
 exclude = ["alembic/"]
 
 [[tool.mypy.overrides]]
+module = "tests"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+module = "tests.*.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+# No published type stubs / py.typed marker for this package.
+module = "rank_bm25.*"
+ignore_missing_imports = true
 
 # --- pytest ---
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# The DB engine (core/database.py) is a process-wide singleton, matching
+# production — so tests must share one event loop too, or the second test
+# to touch the DB gets a connection pool bound to an already-closed loop.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"

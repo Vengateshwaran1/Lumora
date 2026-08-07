@@ -6,12 +6,12 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from lumora_api.core.config import get_settings
-from lumora_api.infrastructure.database import Base
 
 # Imported for its side effect of registering model classes on
 # Base.metadata — required before autogenerate, which otherwise sees an
 # empty metadata object and emits a no-op migration.
 from lumora_api.infrastructure import models  # noqa: F401
+from lumora_api.infrastructure.database import Base
 
 # Alembic Config object — provides access to values in alembic.ini.
 config = context.config
