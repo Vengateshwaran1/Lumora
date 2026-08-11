@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -20,7 +20,8 @@ from lumora_api.infrastructure.database import Base
 
 
 class RepositoryStatus(StrEnum):
-    PENDING = "pending"
+    PENDING = "pending"  # "idle" in ARCHITECTURE.md/milestone-2 wording
+    QUEUED = "queued"
     CLONING = "cloning"
     INDEXING = "indexing"
     READY = "ready"
@@ -33,10 +34,22 @@ class Repository(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     url: Mapped[str] = mapped_column(String(2048), unique=True)
     name: Mapped[str] = mapped_column(String(255))
+    # "owner/repo" parsed from `url` at registration time (see
+    # domain/repository_naming.py) — how a GitHub webhook's
+    # `repository.full_name` is matched back to a row before/without a
+    # GitHub App installation. Case-insensitive match at lookup time.
+    full_name: Mapped[str | None] = mapped_column(String(255), default=None, index=True)
+    # Populated the first time a webhook or GitHub App installation tells us
+    # the repo's numeric GitHub id — preferred lookup key over `full_name`
+    # once known (stable across repo renames).
+    github_repo_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, default=None)
+    installation_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
     default_branch: Mapped[str | None] = mapped_column(String(255), default=None)
     local_path: Mapped[str | None] = mapped_column(String(1024), default=None)
     status: Mapped[RepositoryStatus] = mapped_column(String(20), default=RepositoryStatus.PENDING)
     last_indexed_commit: Mapped[str | None] = mapped_column(String(40), default=None)
+    index_started_at: Mapped[datetime | None] = mapped_column(default=None)
+    index_completed_at: Mapped[datetime | None] = mapped_column(default=None)
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
     indexed_file_count: Mapped[int] = mapped_column(default=0)
     indexed_chunk_count: Mapped[int] = mapped_column(default=0)
@@ -96,3 +109,32 @@ class Chunk(Base):
 
     repository: Mapped[Repository] = relationship(back_populates="chunks")
     file: Mapped[IndexedFile] = relationship(back_populates="chunks")
+
+
+class WebhookDeliveryStatus(StrEnum):
+    RECEIVED = "received"
+    IGNORED = "ignored"
+    QUEUED = "queued"
+    FAILED = "failed"
+
+
+class WebhookDelivery(Base):
+    """Dedup record for GitHub webhook deliveries (ARCHITECTURE.md §6/§8).
+
+    `github_delivery_id` is UNIQUE — the database constraint, not an
+    application-level check, is what makes dedup race-safe: two concurrent
+    requests for the same delivery both attempt an insert, exactly one
+    commits, the other hits `IntegrityError` and is treated as "already
+    processed" (see api/webhooks.py).
+    """
+
+    __tablename__ = "webhook_deliveries"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    github_delivery_id: Mapped[str] = mapped_column(String(255), unique=True)
+    event_type: Mapped[str] = mapped_column(String(100))
+    status: Mapped[WebhookDeliveryStatus] = mapped_column(
+        String(20), default=WebhookDeliveryStatus.RECEIVED
+    )
+    received_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(default=None)

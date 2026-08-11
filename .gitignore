@@ -45,5 +45,8 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
+# --- Learnings ---
+learnings/
+
 # --- Claude Code local settings (machine-specific permissions) ---
 .claude/settings.local.json

@@ -42,6 +42,22 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "lumora_chunks"
 
+    # GitHub webhook HMAC secret (X-Hub-Signature-256). Deliberately no
+    # default — an unset secret means every webhook is rejected (fail
+    # closed), not "skip verification". Set from the GitHub App's webhook
+    # secret in production; any non-empty value works for local testing
+    # against a tool like `gh webhook forward` or a manual signed curl.
+    github_webhook_secret: str = ""
+
+    # GitHub App credentials for minting short-lived installation tokens
+    # (ARCHITECTURE.md §9) — optional. When unset, incremental indexing
+    # falls back to the repository's plain `url` (M1 behavior), which is
+    # correct for public repos and for local/CI testing without real
+    # GitHub App credentials (see docs/architecture/
+    # milestone-2-incremental-indexing.md and §14 of the milestone brief).
+    github_app_id: str | None = None
+    github_app_private_key: str | None = None
+
     # Local storage for cloned repositories. Compose mounts a named volume
     # here; host-run dev defaults to a repo-relative gitignored directory.
     repo_storage_path: str = "./.data/repos"

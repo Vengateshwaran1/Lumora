@@ -11,8 +11,10 @@ manager may already be torn down by the time the background task runs.
 """
 
 import uuid
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lumora_api.api.v1.schemas import (
@@ -31,9 +33,11 @@ from lumora_api.application.repositories.create_repository import create_reposit
 from lumora_api.application.search.search_repository import search_repository
 from lumora_api.core.config import get_settings
 from lumora_api.core.container import (
+    ArqRedisDep,
     ChatProviderDep,
     DbSessionDep,
     EmbeddingProviderDep,
+    JobQueueDep,
     RerankerDep,
     VectorStoreDep,
     get_embedding_provider,
@@ -41,6 +45,7 @@ from lumora_api.core.container import (
     get_vector_store,
 )
 from lumora_api.infrastructure.database import get_session_factory
+from lumora_api.infrastructure.jobs.redis_events import channel_name
 from lumora_api.infrastructure.models import Repository
 
 router = APIRouter(prefix="/repositories", tags=["repositories"])
@@ -62,12 +67,67 @@ async def trigger_index(
     return repository
 
 
+@router.post("/{repository_id}/reindex", response_model=RepositoryStatusResponse, status_code=202)
+async def reindex(
+    repository_id: uuid.UUID, session: DbSessionDep, job_queue: JobQueueDep
+) -> Repository:
+    """Manual "re-index" trigger (milestone-2 spec §16/§10). Goes through the
+    worker queue (`run_full_index`), unlike `/index` which still runs on a
+    FastAPI `BackgroundTask` (see that endpoint's module docstring — M1
+    scope, unchanged here). Always runs a full re-index, not incremental —
+    a user pressing this button wants a known-good baseline, and
+    `index_repository`'s content hashing already means an unchanged repo
+    re-run costs a git fetch plus a hash-compare per file, not a re-embed of
+    everything. Incremental jobs are reserved for the case that actually
+    needs the cheaper path: a webhook-driven push where the prior indexed
+    commit is known."""
+    repository = await _require_repository(session, repository_id)
+    await job_queue.enqueue_full_index(repository_id=repository_id)
+    return repository
+
+
+@router.get("/{repository_id}", response_model=RepositoryStatusResponse)
+async def get_repository(repository_id: uuid.UUID, session: DbSessionDep) -> Repository:
+    return await _require_repository(session, repository_id)
+
+
 @router.get("/{repository_id}/status", response_model=RepositoryStatusResponse)
 async def get_status(repository_id: uuid.UUID, session: DbSessionDep) -> Repository:
-    repository = await session.get(Repository, repository_id)
-    if repository is None:
-        raise HTTPException(status_code=404, detail="Repository not found")
-    return repository
+    return await _require_repository(session, repository_id)
+
+
+@router.get("/{repository_id}/index-status", response_model=RepositoryStatusResponse)
+async def get_index_status(repository_id: uuid.UUID, session: DbSessionDep) -> Repository:
+    return await _require_repository(session, repository_id)
+
+
+@router.get("/{repository_id}/events")
+async def stream_events(
+    repository_id: uuid.UUID, session: DbSessionDep, redis: ArqRedisDep
+) -> StreamingResponse:
+    """SSE progress stream (ARCHITECTURE.md §11). Fire-and-forget — see
+    `application.jobs.events`'s docstring: a client that connects after an
+    event fired sees nothing before it. `/index-status` is the durable
+    source of truth this decorates, not replaces."""
+    await _require_repository(session, repository_id)
+    return StreamingResponse(_event_stream(redis, repository_id), media_type="text/event-stream")
+
+
+async def _event_stream(redis: ArqRedisDep, repository_id: uuid.UUID) -> AsyncIterator[str]:
+    pubsub = redis.pubsub()
+    channel = channel_name(repository_id)
+    await pubsub.subscribe(channel)
+    try:
+        async for message in pubsub.listen():
+            if message["type"] != "message":
+                continue
+            data = message["data"]
+            text = data.decode("utf-8") if isinstance(data, bytes) else str(data)
+            yield f"data: {text}\n\n"
+    finally:
+        await pubsub.unsubscribe(channel)
+        # redis-py's aclose() lacks a return-type stub — not our bug.
+        await pubsub.aclose()  # type: ignore[no-untyped-call]
 
 
 @router.post("/{repository_id}/search", response_model=SearchResponse)

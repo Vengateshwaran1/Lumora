@@ -17,7 +17,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from git import Repo
+from git import GitCommandError, Repo
+
+from lumora_api.domain.git_diff import DiffEntry, parse_name_status
 
 
 def _clear_readonly_and_retry(func: Callable[[str], object], path: str, exc: BaseException) -> None:
@@ -55,7 +57,27 @@ class GitService:
                 repo.close()
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
-            repo = Repo.clone_from(url, str(path), depth=1)
+            # core.autocrlf=false: Lumora only ever reads these clones, so
+            # there's no reason to want OS-native line endings on checkout
+            # — and a big one to avoid it. Without this, on a machine with
+            # autocrlf enabled, a working-tree read (full index, this repo)
+            # and a `git show <sha>:<path>` read (incremental index, which
+            # never applies checkout filters) hash the *same* committed
+            # content differently, breaking "unchanged content is never
+            # re-embedded" the moment a push touches an otherwise-untouched
+            # file. Set once at clone time; it's a repo-local git config
+            # value that persists for the lifetime of this clone.
+            repo = Repo.clone_from(
+                url,
+                str(path),
+                depth=1,
+                multi_options=["-c", "core.autocrlf=false"],
+                # `-c` is flagged unsafe by GitPython because arbitrary
+                # git options can be a command-injection vector — not a
+                # risk here, this literal option list is developer-
+                # authored, not derived from `url` or any other input.
+                allow_unsafe_options=True,
+            )
             try:
                 default_branch = repo.active_branch.name
                 commit_sha = repo.head.commit.hexsha
@@ -82,3 +104,66 @@ class GitService:
         path = self.repo_path(repository_id)
         if path.exists():
             shutil.rmtree(path, onexc=_clear_readonly_and_retry)
+
+    def has_clone(self, repository_id: uuid.UUID) -> bool:
+        return self.repo_path(repository_id).exists()
+
+    def fetch_commit(self, repository_id: uuid.UUID, url: str, commit_sha: str) -> Path:
+        """Fetch a single commit object (tree + blobs, no working-tree
+        checkout) into the repo's existing clone — creating the clone
+        first if it doesn't exist yet. GitHub.com and GitHub Enterprise
+        both allow fetching an arbitrary reachable commit SHA this way
+        (`uploadpack.allowReachableSHA1InWant`, on by default), which is
+        what lets incremental indexing pull just the two commits a push
+        diff needs instead of walking full branch history."""
+        path = self.repo_path(repository_id)
+        if not path.exists():
+            self.clone_or_update(repository_id, url)
+        repo = Repo(str(path))
+        try:
+            repo.git.fetch("origin", commit_sha, depth=1)
+        finally:
+            repo.close()
+        return path
+
+    def diff_name_status(
+        self, local_path: Path, before_sha: str, after_sha: str
+    ) -> list[DiffEntry]:
+        """`git diff --name-status -M` between two commits already present
+        in the local object store (via `fetch_commit`) — `-M` is what makes
+        Git report a delete+add pair as a single rename instead of two
+        unrelated entries."""
+        repo = Repo(str(local_path))
+        try:
+            output: str = repo.git.diff("--name-status", "-M", before_sha, after_sha)
+        finally:
+            repo.close()
+        return parse_name_status(output)
+
+    def read_blob(self, local_path: Path, commit_sha: str, relative_path: str) -> bytes | None:
+        """Read a file's content at a specific commit directly from the
+        git object store — no working-tree checkout needed. Returns None
+        if the path doesn't exist at that commit (shouldn't happen for a
+        path the diff just reported as added/modified, but a defensive
+        check beats an opaque `GitCommandError` bubbling up)."""
+        repo = Repo(str(local_path))
+        try:
+            # GitPython strips a trailing newline from captured stdout by
+            # default (`strip_newline_in_stdout=True`) — harmless for its
+            # usual text-output use cases, but silently corrupts blob
+            # content here: a file that ends in `\n` (as almost all source
+            # files do) comes back one byte short, hashing differently
+            # from the same content read off the working tree and
+            # defeating "unchanged content is never re-embedded" for
+            # exactly the files most likely to be untouched by a push.
+            # The installed type stub doesn't know this kwarg exists.
+            result = repo.git.execute(  # type: ignore[call-overload]
+                ["git", "show", f"{commit_sha}:{relative_path}"],
+                stdout_as_string=False,
+                strip_newline_in_stdout=False,
+            )
+            return result if isinstance(result, bytes) else None
+        except GitCommandError:
+            return None
+        finally:
+            repo.close()

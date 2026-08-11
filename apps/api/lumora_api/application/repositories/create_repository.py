@@ -6,12 +6,14 @@ retriable steps.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lumora_api.domain.repository_naming import derive_repository_name
+from lumora_api.domain.repository_naming import derive_full_name, derive_repository_name
 from lumora_api.infrastructure.models import Repository
 
 
 async def create_repository(session: AsyncSession, url: str) -> Repository:
-    repository = Repository(url=url, name=derive_repository_name(url))
+    repository = Repository(
+        url=url, name=derive_repository_name(url), full_name=derive_full_name(url)
+    )
     session.add(repository)
     await session.commit()
     await session.refresh(repository)

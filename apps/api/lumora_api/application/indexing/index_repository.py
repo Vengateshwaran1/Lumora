@@ -34,28 +34,21 @@ import asyncio
 import hashlib
 import logging
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lumora_api.domain.chunk import ChunkSpan
+from lumora_api.application.indexing.file_indexer import delete_file, index_file_content
+from lumora_api.core.time import utcnow as _utcnow
 from lumora_api.domain.file_filter import looks_binary
 from lumora_api.domain.language import SUPPORTED_LANGUAGES, detect_language
-from lumora_api.infrastructure.chunking.registry import chunk_file
 from lumora_api.infrastructure.embeddings.base import EmbeddingProvider
 from lumora_api.infrastructure.models import Chunk, IndexedFile, Repository, RepositoryStatus
 from lumora_api.infrastructure.vcs.git_service import GitService
-from lumora_api.infrastructure.vector_store.qdrant_store import QdrantVectorStore, VectorPoint
+from lumora_api.infrastructure.vector_store.qdrant_store import QdrantVectorStore
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class _PendingChunk:
-    row: Chunk
-    span: ChunkSpan
 
 
 async def index_repository(
@@ -72,6 +65,8 @@ async def index_repository(
         raise ValueError(f"Repository {repository_id} not found")
 
     repository.status = RepositoryStatus.CLONING
+    repository.index_started_at = _utcnow()
+    repository.index_completed_at = None
     await session.commit()
 
     try:
@@ -111,7 +106,7 @@ async def index_repository(
                 total_chunks += await _count_chunks(session, existing_file.id)
                 continue
 
-            chunk_count = await _index_file(
+            result = await index_file_content(
                 session=session,
                 vector_store=vector_store,
                 embedding_provider=embedding_provider,
@@ -123,7 +118,7 @@ async def index_repository(
                 file_hash=file_hash,
             )
             total_files += 1
-            total_chunks += chunk_count
+            total_chunks += result.total_chunks
 
             repository.indexed_file_count = total_files
             repository.indexed_chunk_count = total_chunks
@@ -134,6 +129,7 @@ async def index_repository(
         repository.indexed_file_count = total_files
         repository.indexed_chunk_count = total_chunks
         repository.error_message = None
+        repository.index_completed_at = _utcnow()
         await session.commit()
 
     except Exception as exc:
@@ -143,6 +139,7 @@ async def index_repository(
         if failed_repo is not None:
             failed_repo.status = RepositoryStatus.FAILED
             failed_repo.error_message = str(exc)
+            failed_repo.index_completed_at = _utcnow()
             await session.commit()
         raise
 
@@ -166,16 +163,10 @@ async def _remove_deleted_files(
     if not removed_paths:
         return
 
-    point_ids: list[str] = []
     for path in removed_paths:
         file_row = existing_files.pop(path)
-        result = await session.execute(
-            select(Chunk.qdrant_point_id).where(Chunk.file_id == file_row.id)
-        )
-        point_ids.extend(result.scalars().all())
-        await session.delete(file_row)  # cascades to its chunks
+        await delete_file(session, vector_store, file_row)
 
-    await vector_store.delete(point_ids)
     await session.commit()
 
 
@@ -194,97 +185,3 @@ def _read_file(full_path: Path, max_file_size_bytes: int) -> bytes | None:
 async def _count_chunks(session: AsyncSession, file_id: uuid.UUID) -> int:
     result = await session.execute(select(Chunk.id).where(Chunk.file_id == file_id))
     return len(result.scalars().all())
-
-
-async def _index_file(
-    *,
-    session: AsyncSession,
-    vector_store: QdrantVectorStore,
-    embedding_provider: EmbeddingProvider,
-    repository_id: uuid.UUID,
-    existing_file: IndexedFile | None,
-    relative_path: str,
-    language: str,
-    content: str,
-    file_hash: str,
-) -> int:
-    spans = chunk_file(language, relative_path, content)
-
-    if existing_file is None:
-        file_row = IndexedFile(
-            repository_id=repository_id,
-            path=relative_path,
-            language=language,
-            content_hash=file_hash,
-        )
-        session.add(file_row)
-        await session.flush()
-        existing_chunks_by_hash: dict[str, Chunk] = {}
-    else:
-        file_row = existing_file
-        file_row.content_hash = file_hash
-        result = await session.execute(select(Chunk).where(Chunk.file_id == file_row.id))
-        existing_chunks_by_hash = {c.content_hash: c for c in result.scalars().all()}
-
-    pending: list[_PendingChunk] = []
-    new_hashes: set[str] = set()
-
-    for span in spans:
-        content_hash = hashlib.sha256(span.content.encode("utf-8")).hexdigest()
-        new_hashes.add(content_hash)
-        if content_hash in existing_chunks_by_hash:
-            continue  # unchanged chunk — already embedded and stored
-
-        chunk_id = uuid.uuid4()
-        chunk_row = Chunk(
-            id=chunk_id,
-            repository_id=repository_id,
-            file_id=file_row.id,
-            file_path=relative_path,
-            language=language,
-            symbol=span.symbol,
-            kind=span.kind,
-            start_line=span.start_line,
-            end_line=span.end_line,
-            content=span.content,
-            content_hash=content_hash,
-            qdrant_point_id=str(chunk_id),
-        )
-        session.add(chunk_row)
-        pending.append(_PendingChunk(row=chunk_row, span=span))
-
-    stale_point_ids = [
-        chunk.qdrant_point_id
-        for hash_, chunk in existing_chunks_by_hash.items()
-        if hash_ not in new_hashes
-    ]
-    for hash_ in set(existing_chunks_by_hash) - new_hashes:
-        await session.delete(existing_chunks_by_hash[hash_])
-
-    if pending:
-        vectors = await embedding_provider.embed([p.span.content for p in pending])
-        await vector_store.ensure_collection(len(vectors[0]))
-        points = [
-            VectorPoint(
-                id=str(p.row.id),
-                vector=vector,
-                payload={
-                    "repository_id": str(repository_id),
-                    "chunk_id": str(p.row.id),
-                    "file_path": relative_path,
-                    "language": language,
-                    "symbol": p.span.symbol,
-                    "kind": p.span.kind,
-                    "start_line": p.span.start_line,
-                    "end_line": p.span.end_line,
-                    "content": p.span.content,
-                },
-            )
-            for p, vector in zip(pending, vectors, strict=True)
-        ]
-        await vector_store.upsert(points)
-
-    if stale_point_ids:
-        await vector_store.delete(stale_point_ids)
-
-    return len(new_hashes)

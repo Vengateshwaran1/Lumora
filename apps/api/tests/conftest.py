@@ -1,4 +1,6 @@
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -17,8 +19,19 @@ TEST_EMBEDDING_DIMENSIONS = 32
 
 
 @pytest.fixture
-async def client():
-    app = create_app()
+def app():
+    """The FastAPI instance backing `client` — a separate fixture so tests
+    can set `app.dependency_overrides` (e.g. swapping `get_job_queue` for
+    `tests.fakes.FakeJobQueue`) before requests are made. Note `client`'s
+    `ASGITransport` never runs the app's lifespan, so `app.state.arq_redis`
+    is never set in tests — any dependency chain reaching it must be
+    overridden rather than exercised live (see application/jobs/queue.py's
+    docstring for why)."""
+    return create_app()
+
+
+@pytest.fixture
+async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -70,6 +83,52 @@ def sample_repo_path(tmp_path: Path) -> str:
 @pytest.fixture
 def git_service(tmp_path: Path) -> GitService:
     return GitService(tmp_path / "clones")
+
+
+@dataclass
+class RepoWithHistory:
+    path: str
+    commit_a: str  # initial commit — HEAD at fixture setup time
+    push_commit_b: Callable[[], str]  # call after the baseline index to advance the repo
+
+
+@pytest.fixture
+def sample_repo_with_history(tmp_path: Path) -> RepoWithHistory:
+    """Local git repo for incremental-indexing tests, exposing `commit_a`
+    as HEAD immediately (so a baseline `index_repository` run — which
+    clones whatever HEAD currently is — genuinely indexes commit A, not a
+    later one) and `push_commit_b()` to advance the repo afterward,
+    mirroring the real chronology a webhook fires against: index at A,
+    *then* a push happens, moving HEAD to B. `push_commit_b()` modifies one
+    file, adds one, deletes one, and renames one (unchanged content) —
+    covering every diff status `incremental_index_repository` handles."""
+    repo_dir = tmp_path / "history_repo"
+    repo_dir.mkdir()
+    repo = Repo.init(repo_dir, initial_branch="main")
+    repo.config_writer().set_value("user", "name", "Test").release()
+    repo.config_writer().set_value("user", "email", "test@example.com").release()
+
+    (repo_dir / "app.py").write_text(
+        "def add(a, b):\n    return a + b\n\n\ndef sub(a, b):\n    return a - b\n"
+    )
+    (repo_dir / "greeter.ts").write_text(
+        "export function greet(name: string): string {\n  return `Hello, ${name}`;\n}\n"
+    )
+    (repo_dir / "doomed.py").write_text("def doomed():\n    return 'will be deleted'\n")
+    repo.git.add(A=True)
+    commit_a = repo.index.commit("commit A").hexsha
+
+    def push_commit_b() -> str:
+        (repo_dir / "app.py").write_text(
+            "def add(a, b):\n    return a + b\n\n\ndef mul(a, b):\n    return a * b\n"
+        )
+        (repo_dir / "new_file.py").write_text("def new_thing():\n    return 42\n")
+        (repo_dir / "doomed.py").unlink()
+        repo.git.mv("greeter.ts", "renamed_greeter.ts")
+        repo.git.add(A=True)
+        return repo.index.commit("commit B").hexsha
+
+    return RepoWithHistory(path=str(repo_dir), commit_a=commit_a, push_commit_b=push_commit_b)
 
 
 @pytest.fixture

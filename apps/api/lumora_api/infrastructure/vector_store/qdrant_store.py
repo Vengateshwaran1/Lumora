@@ -64,6 +64,19 @@ class QdrantVectorStore:
             ],
         )
 
+    async def set_payload(self, point_ids: list[str], payload: dict[str, Any]) -> None:
+        """Update payload fields on existing points without touching their
+        vectors — used for the rename-with-unchanged-content path, where
+        re-embedding would waste an embedding call for content that hasn't
+        changed (only `file_path`/`file_id` need updating)."""
+        if not point_ids:
+            return
+        await self._client.set_payload(
+            collection_name=self._collection_name,
+            payload=payload,
+            points=models.PointIdsList(points=point_ids),
+        )
+
     async def delete(self, point_ids: list[str]) -> None:
         if not point_ids:
             return

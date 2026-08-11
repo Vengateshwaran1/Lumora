@@ -5,6 +5,7 @@ transport-shape definitions don't crowd the endpoint logic.
 """
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -19,9 +20,12 @@ class RepositoryStatusResponse(BaseModel):
     id: uuid.UUID
     url: str
     name: str
+    full_name: str | None
     status: RepositoryStatus
     default_branch: str | None
     last_indexed_commit: str | None
+    index_started_at: datetime | None
+    index_completed_at: datetime | None
     indexed_file_count: int
     indexed_chunk_count: int
     error_message: str | None

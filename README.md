@@ -5,9 +5,13 @@ GitHub repository, answers questions about it with cited sources (RAG),
 plans and implements issues, reviews pull requests, runs tests, and debugs
 failures — orchestrated by a supervisor of specialized LangGraph agents.
 
-This repository is currently at **Milestone 1 — Repository Ingestion &
-RAG**: connect a repo, clone it, chunk it with AST-aware parsing, embed and
-index it, and answer questions about it with file/line citations. Coding
+This repository is currently at **Milestone 2 — Incremental Indexing +
+GitHub Webhooks**: repository knowledge now stays synchronized with
+GitHub without a full re-index on every push — a webhook triggers a
+diff-based incremental re-index that touches only changed files and never
+re-embeds unchanged content. Milestone 1 (connect a repo, clone it, chunk
+it with AST-aware parsing, embed and index it, answer questions with
+file/line citations) is unchanged and still the foundation. Coding
 agents, planning agents, PR generation, and auth are not implemented yet —
 see [Roadmap](#roadmap) below.
 
@@ -19,7 +23,10 @@ for every decision, lives in
 Per-milestone implementation decisions (where a milestone deliberately
 simplifies the top-level design, and why) live in their own docs — see
 [`docs/architecture/milestone-1-rag-pipeline.md`](docs/architecture/milestone-1-rag-pipeline.md)
-for Milestone 1. The short version of the overall architecture:
+for Milestone 1 and
+[`docs/architecture/milestone-2-incremental-indexing.md`](docs/architecture/milestone-2-incremental-indexing.md)
+for Milestone 2 (webhook setup, security, incremental-diff algorithm,
+failure/retry behavior). The short version of the overall architecture:
 
 - **Backend**: FastAPI, layered as Clean Architecture (`api → application →
   domain`, with `infrastructure` implementing ports). Agent orchestration
@@ -40,7 +47,7 @@ for Milestone 1. The short version of the overall architecture:
 | Layer      | Technology                                                                 |
 | ---------- | --------------------------------------------------------------------------- |
 | Frontend   | React 19, TypeScript (strict), Vite, Tailwind CSS v4, shadcn/ui, React Router, TanStack Query, Zustand, Framer Motion |
-| Backend    | Python 3.12+, uv, FastAPI, SQLAlchemy 2 (async), Alembic, Pydantic v2       |
+| Backend    | Python 3.12+, uv, FastAPI, SQLAlchemy 2 (async), Alembic, Pydantic v2, arq (Redis-backed worker queue) |
 | AI         | LangGraph, LangChain, OpenAI, Ollama, MCP                                   |
 | Data       | PostgreSQL, Redis, Qdrant, MinIO (S3-compatible)                            |
 | Infra      | Docker, Docker Compose, GitHub Actions                                      |
@@ -79,9 +86,10 @@ cp .env.example .env
 docker compose up --build
 ```
 
-This starts Postgres, Redis, Qdrant, MinIO, the API, and the Vite dev
-server, wired together on a compose network with healthchecks gating
-startup order.
+This starts Postgres, Redis, Qdrant, MinIO, the API, the **arq worker**
+(indexing jobs — full and incremental — run here, never inside the API
+process), and the Vite dev server, wired together on a compose network
+with healthchecks gating startup order.
 
 | Service        | URL                                      |
 | -------------- | ----------------------------------------- |
@@ -190,16 +198,51 @@ sentence-transformers cross-encoder reranking pass — downloads model
 weights from Hugging Face on first use, so it's opt-in rather than default
 (see the pipeline doc for why).
 
+## Incremental Indexing & GitHub Webhooks
+
+Once a repo has been indexed once, a GitHub push webhook keeps it in sync
+without a full re-index: `POST /webhooks/github` verifies the delivery's
+HMAC signature, dedups redelivered events, diffs `last_indexed_sha →
+after_sha` via local git, and enqueues an incremental-indexing job that
+touches only the changed files — full detail, including the diff
+algorithm and two real cross-platform bugs found building it, in
+[milestone-2-incremental-indexing.md](docs/architecture/milestone-2-incremental-indexing.md).
+
+```bash
+# Required for the webhook endpoint to accept anything — every request is
+# rejected while this is unset (fail closed, not "skip verification").
+GITHUB_WEBHOOK_SECRET=some-shared-secret
+
+# Optional — only needed to mint installation tokens for private repos;
+# public repos and all local/CI testing work without these.
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY=
+```
+
+Set `GITHUB_WEBHOOK_SECRET` in the root `.env` (Docker Compose) or
+`apps/api/.env` (host-run), point a repo webhook at
+`https://<your-tunnel>/webhooks/github` with "Just the push event," and
+push — see the milestone doc's [Local
+development](docs/architecture/milestone-2-incremental-indexing.md#local-development)
+section for the full walkthrough, including a manually-signed `curl`
+example for testing signature verification without GitHub at all.
+
+The repos page (`/repos`) shows each connected repository's index status,
+progress, last successful index time, and errors, with a manual
+**Re-index** button.
+
 ## Development Workflow
 
 All commands below assume dependencies are installed (`uv sync` in
 `apps/api`, `npm install` at the repo root). Backend tests need Postgres
 and Qdrant running (`docker compose up -d postgres qdrant` from the repo
-root is enough — the API/web containers aren't needed) and migrations
-applied (`docker compose run --rm migrate`, or `uv run alembic upgrade
-head` from `apps/api` for host-run dev); they do **not** need Ollama —
-the suite uses the deterministic embedding provider and mocks Ollama's
-HTTP API for the provider-specific unit tests.
+root is enough — the API/web/worker containers aren't needed) and
+migrations applied (`docker compose run --rm migrate`, or `uv run alembic
+upgrade head` from `apps/api` for host-run dev); they do **not** need
+Ollama or Redis — the suite uses the deterministic embedding provider,
+mocks Ollama's/GitHub's HTTP APIs for the provider-specific unit tests,
+and swaps the arq-backed job queue for an in-process fake (see
+[milestone-2-incremental-indexing.md](docs/architecture/milestone-2-incremental-indexing.md#testing-strategy)).
 
 | Check              | Backend (`apps/api`)      | Frontend (`apps/web`, run from repo root or with `--workspace apps/web`) |
 | ------------------ | -------------------------- | -------------------------------------------------------------------------- |
@@ -234,7 +277,7 @@ for the full breakdown and verification gates.
 
 - [x] **M0 — Foundations**: monorepo, toolchains, Docker Compose dev stack, CI
 - [x] **M1 — Vertical slice**: index one repo → cited Q&A
-- [ ] **M2 — Incremental indexing**: webhooks, diff-based re-index
+- [x] **M2 — Incremental indexing**: webhooks, diff-based re-index
 - [ ] **M3 — Planning agent**: issue → structured implementation plan
 - [ ] **M4 — Sandboxed execution**: Coding/Test/Debug agents, approval gate
 - [ ] **M5 — PR automation**: end-to-end issue → PR flow

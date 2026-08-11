@@ -12,6 +12,14 @@ real code side by side.
   embeddings, vector search, AST-aware chunking, hybrid retrieval (dense +
   BM25), Reciprocal Rank Fusion, reranking, and how retrieved chunks
   become a cited answer.
+- [`02-incremental-indexing-and-webhooks.md`](02-incremental-indexing-and-webhooks.md) —
+  Milestone 2: HMAC webhook verification (and why it has to be constant-
+  time), race-safe dedup via a database constraint, why the diff base has
+  to come from your own state rather than the webhook payload, diffing
+  git history without a full checkout, two real "same content, different
+  bytes" bugs and the general lesson behind them, job queues as load
+  leveling, chunk-level content-addressing, fire-and-forget pub/sub vs.
+  durable state, and designing operations to be idempotent.
 
 More get added as later milestones introduce new concepts (agent
 orchestration, LangGraph, tool use, evaluation, etc.).
