@@ -1,6 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { MessageSquare, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
-import { ACTIVE_STATUSES, getIndexStatus, triggerReindex } from "./api";
+import { triggerIndex, triggerReindex } from "@/shared/api/repositories";
+import { ACTIVE_STATUSES } from "@/shared/api/types";
+import { Button } from "@/shared/components/ui/button";
+import { Card } from "@/shared/components/ui/card";
+
+import { useIndexingProgress } from "@/components/indexing/use-indexing-progress";
 import { RepoStatusBadge } from "./repo-status-badge";
 import { useReposStore } from "./store";
 
@@ -12,32 +20,32 @@ function formatTimestamp(value: string | null): string {
 export function RepoCard({ repositoryId }: { repositoryId: string }) {
   const queryClient = useQueryClient();
   const removeTracked = useReposStore((state) => state.removeTracked);
+  const { statusQuery } = useIndexingProgress(repositoryId);
 
-  const statusQuery = useQuery({
-    queryKey: ["repository", repositoryId, "index-status"],
-    queryFn: () => getIndexStatus(repositoryId),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status && ACTIVE_STATUSES.includes(status) ? 2000 : false;
+  const indexMutation = useMutation({
+    mutationFn: () => triggerIndex(repositoryId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["repository", repositoryId, "index-status"], data);
     },
+    onError: (error) => toast.error(error.message),
   });
 
   const reindexMutation = useMutation({
     mutationFn: () => triggerReindex(repositoryId),
     onSuccess: (data) => {
       queryClient.setQueryData(["repository", repositoryId, "index-status"], data);
+      toast.success("Re-index queued");
     },
+    onError: (error) => toast.error(error.message),
   });
 
   if (statusQuery.isPending) {
-    return (
-      <div className="border-border bg-card rounded-lg border p-4 text-sm">Loading repository…</div>
-    );
+    return <Card className="text-muted-foreground p-4 text-sm">Loading repository…</Card>;
   }
 
   if (statusQuery.isError) {
     return (
-      <div className="border-border bg-card rounded-lg border p-4">
+      <Card className="p-4">
         <p className="text-destructive text-sm">
           Couldn't load this repository ({statusQuery.error.message}).
         </p>
@@ -48,19 +56,22 @@ export function RepoCard({ repositoryId }: { repositoryId: string }) {
         >
           Remove from list
         </button>
-      </div>
+      </Card>
     );
   }
 
   const repo = statusQuery.data;
   const isActive = ACTIVE_STATUSES.includes(repo.status);
+  const neverIndexed = repo.status === "pending";
 
   return (
-    <div className="border-border bg-card rounded-lg border p-4">
+    <Card className="hover:border-border-strong group p-4 transition-all duration-200 ease-[var(--ease-premium)] hover:shadow-[var(--shadow-card-hover)]">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-medium">{repo.name}</p>
-          <p className="text-muted-foreground text-xs break-all">{repo.url}</p>
+        <div className="min-w-0">
+          <Link to={`/app/repositories/${repositoryId}`} className="hover:text-primary font-medium">
+            {repo.name}
+          </Link>
+          <p className="text-muted-foreground truncate text-xs">{repo.url}</p>
         </div>
         <RepoStatusBadge status={repo.status} />
       </div>
@@ -86,23 +97,33 @@ export function RepoCard({ repositoryId }: { repositoryId: string }) {
         </p>
       ) : null}
 
-      <div className="mt-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => reindexMutation.mutate()}
-          disabled={isActive || reindexMutation.isPending}
-          className="bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Button variant="secondary" size="sm" asChild>
+          <Link to={`/app/repositories/${repositoryId}`}>Open</Link>
+        </Button>
+        <Button variant="secondary" size="sm" asChild>
+          <Link to={`/app/chat?repo=${repositoryId}`}>
+            <MessageSquare className="size-3.5" />
+            Ask Lumora
+          </Link>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => (neverIndexed ? indexMutation.mutate() : reindexMutation.mutate())}
+          disabled={isActive || indexMutation.isPending || reindexMutation.isPending}
         >
-          {isActive ? "Indexing…" : "Re-index"}
-        </button>
+          <RefreshCw className={`size-3.5 ${isActive ? "animate-spin" : ""}`} />
+          {isActive ? "Indexing…" : neverIndexed ? "Index now" : "Re-index"}
+        </Button>
         <button
           type="button"
           onClick={() => removeTracked(repositoryId)}
-          className="text-muted-foreground hover:text-foreground text-xs underline"
+          className="text-muted-foreground hover:text-foreground ml-auto text-xs underline"
         >
-          Remove from list
+          Remove
         </button>
       </div>
-    </div>
+    </Card>
   );
 }

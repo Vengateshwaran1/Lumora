@@ -1,6 +1,6 @@
-import { cn } from "@/shared/lib/utils";
+import { StatusIndicator, type SignalTone } from "@/components/motion/status-indicator";
 
-import type { RepositoryStatus } from "./api";
+import type { RepositoryStatus } from "@/shared/api/types";
 
 const STATUS_LABEL: Record<RepositoryStatus, string> = {
   pending: "Idle",
@@ -11,24 +11,23 @@ const STATUS_LABEL: Record<RepositoryStatus, string> = {
   failed: "Failed",
 };
 
-const STATUS_CLASSES: Record<RepositoryStatus, string> = {
-  pending: "bg-muted text-muted-foreground",
-  queued: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  cloning: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  indexing: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  ready: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  failed: "bg-destructive/15 text-destructive",
+const STATUS_TONE: Record<RepositoryStatus, SignalTone> = {
+  pending: "neutral",
+  queued: "engineering",
+  cloning: "engineering",
+  indexing: "engineering",
+  ready: "success",
+  failed: "error",
 };
+
+const ACTIVE: RepositoryStatus[] = ["queued", "cloning", "indexing"];
 
 export function RepoStatusBadge({ status }: { status: RepositoryStatus }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-        STATUS_CLASSES[status],
-      )}
-    >
-      {STATUS_LABEL[status]}
-    </span>
+    <StatusIndicator
+      tone={STATUS_TONE[status]}
+      label={STATUS_LABEL[status]}
+      pulse={ACTIVE.includes(status)}
+    />
   );
 }

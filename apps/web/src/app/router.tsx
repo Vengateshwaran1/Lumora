@@ -1,28 +1,116 @@
+import { lazy, Suspense, type ComponentType } from "react";
 import { createBrowserRouter } from "react-router-dom";
 
-import { AppLayout } from "@/app/layout";
 import { NotFoundPage } from "@/app/not-found-page";
-import { AgentRunsPage } from "@/features/agent-runs/agent-runs-page";
-import { ChatPage } from "@/features/chat/chat-page";
-import { DashboardPage } from "@/features/dashboard/dashboard-page";
-import { IssuesPage } from "@/features/issues/issues-page";
-import { PrReviewPage } from "@/features/pr-review/pr-review-page";
-import { ReposPage } from "@/features/repos/repos-page";
-import { SettingsPage } from "@/features/settings/settings-page";
+import { RouteFallback } from "@/shared/components/route-fallback";
+
+function lazyRoute(loader: () => Promise<{ [key: string]: ComponentType }>, exportName: string) {
+  const LazyComponent = lazy(() => loader().then((module) => ({ default: module[exportName]! })));
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <LazyComponent />
+    </Suspense>
+  );
+}
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <AppLayout />,
+    element: lazyRoute(() => import("@/features/marketing/landing-page"), "LandingPage"),
+  },
+
+  {
+    element: lazyRoute(() => import("@/features/auth/auth-layout"), "AuthLayout"),
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: "repos", element: <ReposPage /> },
-      { path: "chat", element: <ChatPage /> },
-      { path: "issues", element: <IssuesPage /> },
-      { path: "pr-review", element: <PrReviewPage /> },
-      { path: "agent-runs", element: <AgentRunsPage /> },
-      { path: "settings", element: <SettingsPage /> },
+      {
+        path: "login",
+        element: lazyRoute(() => import("@/features/auth/login-page"), "LoginPage"),
+      },
+      {
+        path: "signup",
+        element: lazyRoute(() => import("@/features/auth/signup-page"), "SignupPage"),
+      },
+      {
+        path: "forgot-password",
+        element: lazyRoute(
+          () => import("@/features/auth/forgot-password-page"),
+          "ForgotPasswordPage",
+        ),
+      },
+    ],
+  },
+  {
+    path: "onboarding",
+    element: lazyRoute(() => import("@/features/auth/onboarding-page"), "OnboardingPage"),
+  },
+
+  {
+    path: "/app",
+    element: lazyRoute(() => import("@/components/app-shell/app-shell"), "AppShell"),
+    children: [
+      {
+        index: true,
+        element: lazyRoute(() => import("@/features/dashboard/dashboard-page"), "DashboardPage"),
+      },
+      {
+        path: "repositories",
+        element: lazyRoute(() => import("@/features/repos/repos-page"), "ReposPage"),
+      },
+      {
+        path: "repositories/:id",
+        element: lazyRoute(
+          () => import("@/features/repos/detail/repository-detail-page"),
+          "RepositoryDetailPage",
+        ),
+      },
+      {
+        path: "issues",
+        element: lazyRoute(() => import("@/features/issues/issues-page"), "IssuesPage"),
+      },
+      {
+        path: "issues/:id",
+        element: lazyRoute(() => import("@/features/issues/issue-detail-page"), "IssueDetailPage"),
+      },
+      {
+        path: "knowledge",
+        element: lazyRoute(() => import("@/features/knowledge/knowledge-page"), "KnowledgePage"),
+      },
+      { path: "code", element: lazyRoute(() => import("@/features/code/code-page"), "CodePage") },
+      { path: "chat", element: lazyRoute(() => import("@/features/chat/chat-page"), "ChatPage") },
+      { path: "runs", element: lazyRoute(() => import("@/features/runs/runs-page"), "RunsPage") },
+      {
+        path: "runs/:id",
+        element: lazyRoute(() => import("@/features/runs/run-detail-page"), "RunDetailPage"),
+      },
+      {
+        path: "pull-requests",
+        element: lazyRoute(
+          () => import("@/features/pull-requests/pull-requests-page"),
+          "PullRequestsPage",
+        ),
+      },
+      {
+        path: "pull-requests/:id",
+        element: lazyRoute(
+          () => import("@/features/pull-requests/pull-request-detail-page"),
+          "PullRequestDetailPage",
+        ),
+      },
+      {
+        path: "reviews",
+        element: lazyRoute(() => import("@/features/reviews/reviews-page"), "ReviewsPage"),
+      },
+      {
+        path: "activity",
+        element: lazyRoute(() => import("@/features/activity/activity-page"), "ActivityPage"),
+      },
+      {
+        path: "settings",
+        element: lazyRoute(() => import("@/features/settings/settings-page"), "SettingsPage"),
+      },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
+
+  { path: "*", element: <NotFoundPage /> },
 ]);

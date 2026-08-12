@@ -1,7 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
+import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
-import { registerRepository } from "./api";
+import { registerRepository } from "@/shared/api/repositories";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+
 import { useReposStore } from "./store";
 
 export function ConnectRepoForm() {
@@ -13,7 +18,9 @@ export function ConnectRepoForm() {
     onSuccess: (repo) => {
       addTracked({ id: repo.id, url: repo.url });
       setUrl("");
+      toast.success(`Connected ${repo.name}`);
     },
+    onError: (error) => toast.error(error.message),
   });
 
   return (
@@ -22,25 +29,23 @@ export function ConnectRepoForm() {
         event.preventDefault();
         if (url.trim()) registerMutation.mutate(url.trim());
       }}
-      className="flex items-center gap-2"
+      className="surface-card ring-gradient flex items-center gap-2 p-1.5"
     >
-      <input
+      <Input
         type="text"
         value={url}
         onChange={(event) => setUrl(event.target.value)}
         placeholder="https://github.com/owner/repo.git"
-        className="border-input bg-background flex-1 rounded-md border px-3 py-1.5 text-sm"
+        className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
       />
-      <button
-        type="submit"
-        disabled={registerMutation.isPending || !url.trim()}
-        className="bg-primary text-primary-foreground rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-      >
-        {registerMutation.isPending ? "Connecting…" : "Connect"}
-      </button>
-      {registerMutation.isError ? (
-        <span className="text-destructive text-xs">{registerMutation.error.message}</span>
-      ) : null}
+      <Button type="submit" disabled={registerMutation.isPending || !url.trim()}>
+        {registerMutation.isPending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Plus className="size-4" />
+        )}
+        Connect
+      </Button>
     </form>
   );
 }

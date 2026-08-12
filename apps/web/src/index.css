@@ -4,45 +4,145 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+
+  /* Obsidian / Copper Intelligence — light mode.
+     --lum-* are the single raw source of truth per theme; every semantic
+     token below (and every component in the app) reads through them —
+     never hardcode a literal hex/rgba in a component, change it here. */
+  --lum-primary: #b84e2e;
+  --lum-primary-hover: #d2673f;
+  --lum-primary-rgb: 184, 78, 46;
+  --lum-approval: #9c7a1e;
+  --lum-approval-rgb: 156, 122, 30;
+
+  --background: #f5f4ec;
+  --foreground: #151711;
+  --card: #ffffff;
+  --card-foreground: #151711;
+  --popover: #ffffff;
+  --popover-foreground: #151711;
+  --primary: var(--lum-primary);
+  --primary-foreground: #f5f4ec;
+  --secondary: #ebece2;
+  --secondary-foreground: #151711;
+  --muted: #ebece2;
+  --muted-foreground: #5d6255;
+  --accent: #ebece2;
+  --accent-foreground: #151711;
+  --destructive: #c23b3b;
+  --destructive-foreground: #f5f4ec;
+  --border: #d9dbd0;
+  --border-strong: #c3c6b7;
+  --input: #d9dbd0;
+  --ring: var(--lum-primary);
+
+  /* Lumora semantic signal colors — light mode */
+  --engineering: #2947d8;
+  --engineering-foreground: #f5f4ec;
+  --approval: var(--lum-approval);
+  --approval-foreground: #f5f4ec;
+  --ai-activity: #7565d6;
+  --ai-activity-foreground: #f5f4ec;
+  --success: #5c8a2e;
+  --success-foreground: #f5f4ec;
+
+  /* Depth & glow — light mode (subtler; shadows carry the weight, not glow) */
+  --surface-hover: #f0f1e6;
+  --surface-inset: #eeefe4;
+  --primary-gradient: linear-gradient(135deg, #d2673f 0%, var(--lum-primary) 55%, #973d22 100%);
+  --primary-glow: rgba(var(--lum-primary-rgb), 0.22);
+  --primary-glow-soft: rgba(var(--lum-primary-rgb), 0.1);
+  --engineering-glow: rgba(41, 71, 216, 0.18);
+  --ai-activity-glow: rgba(117, 101, 214, 0.18);
+  --approval-glow: rgba(var(--lum-approval-rgb), 0.18);
+  --success-glow: rgba(92, 138, 46, 0.18);
+  --shadow-card: 0 1px 2px 0 rgba(21, 23, 17, 0.04), 0 1px 1px 0 rgba(21, 23, 17, 0.03);
+  --shadow-card-hover: 0 8px 20px -8px rgba(21, 23, 17, 0.12), 0 0 0 1px var(--primary-glow-soft);
+  --shadow-elevated: 0 16px 40px -12px rgba(21, 23, 17, 0.16);
+  --shadow-glow-primary:
+    0 0 0 1px rgba(var(--lum-primary-rgb), 0.3), 0 6px 16px -6px var(--primary-glow);
+  --shadow-glow-primary-hover:
+    0 0 0 1px rgba(var(--lum-primary-rgb), 0.5), 0 10px 24px -6px rgba(var(--lum-primary-rgb), 0.3);
+
+  /* Motion tokens — mirrored as JS constants in shared/lib/motion.ts */
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+  --ease-emph: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-premium: var(--ease-emph);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* Obsidian / Copper Intelligence — dark mode */
+  --lum-primary: #e07856;
+  --lum-primary-hover: #f0997a;
+  --lum-primary-rgb: 224, 120, 86;
+  --lum-approval: #d9a83a;
+  --lum-approval-rgb: 217, 168, 58;
+
+  --background: #08090a;
+  --foreground: #f3f2e9;
+  --card: #121410;
+  --card-foreground: #f3f2e9;
+  --popover: #1a1d16;
+  --popover-foreground: #f3f2e9;
+  --primary: var(--lum-primary);
+  --primary-foreground: #0a0704;
+  --secondary: #1a1d16;
+  --secondary-foreground: #f3f2e9;
+  --muted: #121410;
+  --muted-foreground: #a3a596;
+  --accent: #1f2318;
+  --accent-foreground: #f3f2e9;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #0a0704;
+  --border: rgba(243, 242, 233, 0.1);
+  --border-strong: rgba(243, 242, 233, 0.2);
+  --input: rgba(243, 242, 233, 0.14);
+  --ring: var(--lum-primary);
+
+  /* Lumora semantic signal colors — dark mode */
+  --engineering: #3657ff;
+  --engineering-foreground: #f3f2e9;
+  --approval: var(--lum-approval);
+  --approval-foreground: #0a0704;
+  --ai-activity: #b7a7ff;
+  --ai-activity-foreground: #0a0704;
+  --success: #9be564;
+  --success-foreground: #0a0704;
+
+  /* Depth & glow — the tactile layer flat hex tokens don't give you */
+  --surface-hover: #1c1f17;
+  --surface-inset: #0c0e09;
+  --primary-gradient: linear-gradient(135deg, #f0997a 0%, var(--lum-primary) 55%, #c15a3a 100%);
+  --primary-glow: rgba(var(--lum-primary-rgb), 0.35);
+  --primary-glow-soft: rgba(var(--lum-primary-rgb), 0.14);
+  --engineering-glow: rgba(54, 87, 255, 0.3);
+  --ai-activity-glow: rgba(183, 167, 255, 0.28);
+  --approval-glow: rgba(var(--lum-approval-rgb), 0.28);
+  --success-glow: rgba(155, 229, 100, 0.28);
+  --shadow-card: 0 1px 0 0 rgba(243, 242, 233, 0.04) inset, 0 10px 30px -18px rgba(0, 0, 0, 0.7);
+  --shadow-card-hover:
+    0 1px 0 0 rgba(243, 242, 233, 0.06) inset, 0 16px 40px -16px rgba(0, 0, 0, 0.8),
+    0 0 0 1px var(--primary-glow-soft);
+  --shadow-elevated:
+    0 1px 0 0 rgba(243, 242, 233, 0.06) inset, 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+  --shadow-glow-primary:
+    0 0 0 1px rgba(var(--lum-primary-rgb), 0.4), 0 8px 24px -8px var(--primary-glow);
+  --shadow-glow-primary-hover:
+    0 0 0 1px rgba(var(--lum-primary-rgb), 0.55),
+    0 12px 32px -8px rgba(var(--lum-primary-rgb), 0.45);
+
+  /* Motion tokens — same values as light, kept per-theme for future divergence */
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+  --ease-emph: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-premium: var(--ease-emph);
 }
 
 @theme inline {
@@ -66,9 +166,26 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-inset: var(--surface-inset);
+
+  --color-engineering: var(--engineering);
+  --color-engineering-foreground: var(--engineering-foreground);
+  --color-approval: var(--approval);
+  --color-approval-foreground: var(--approval-foreground);
+  --color-ai-activity: var(--ai-activity);
+  --color-ai-activity-foreground: var(--ai-activity-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
 }
 
 @layer base {
@@ -77,5 +194,222 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Premium surface recipe — replaces flat `border p-4` divs. Depth comes
+     from --shadow-card (a soft ambient shadow + 1px inner highlight), not
+     from a heavier border. */
+  .surface-card {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+
+  .surface-card-interactive {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    transition:
+      transform var(--dur-base) var(--ease-emph),
+      box-shadow var(--dur-base) var(--ease-emph),
+      border-color var(--dur-base) var(--ease-emph),
+      background-color var(--dur-base) var(--ease-emph);
+  }
+
+  /* Hover shine-sweep — a diagonal light bar crossing the surface on hover. */
+  .surface-card-interactive::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 40%,
+      rgba(var(--lum-primary-rgb), 0.1) 50%,
+      transparent 60%
+    );
+    transform: translateX(-150%);
+    transition: transform 800ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .surface-card-interactive:hover::before {
+    transform: translateX(150%);
+  }
+
+  .surface-card-interactive:hover {
+    border-color: var(--primary-glow-soft);
+    background-color: var(--surface-hover);
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+  }
+
+  .surface-card-interactive:active {
+    transform: translateY(-1px);
+    transition-duration: 100ms;
+  }
+
+  /* Gradient-ring border — a 1px gradient outline independent of the
+     element's own background/border-radius, for a small number of
+     featured surfaces (not every card — see design plan). */
+  .ring-gradient {
+    position: relative;
+  }
+
+  .ring-gradient::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(var(--lum-primary-rgb), 0.55),
+      rgba(var(--lum-primary-rgb), 0.05) 40%,
+      rgba(var(--lum-primary-rgb), 0.4)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  /* Cursor spotlight — paired with components/motion/spotlight.tsx, which
+     writes --sx/--sy on pointermove. */
+  .spotlight {
+    position: relative;
+  }
+
+  .spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      420px circle at var(--sx, 50%) var(--sy, 50%),
+      rgba(var(--lum-primary-rgb), 0.14),
+      transparent 70%
+    );
+    transition: opacity var(--dur-base) var(--ease-emph);
+  }
+
+  .spotlight:hover::before {
+    opacity: 1;
+  }
+
+  /* Glass — scoped to nav/topbar/dialogs/sheets only (see design plan);
+     never applied to repeated list-card surfaces (backdrop-filter cost). */
+  .glass {
+    background-color: color-mix(in oklab, var(--card) 72%, transparent);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+
+  /* Marquee — pure CSS infinite scroll, no JS. Pair with two duplicated
+     children so the loop is seamless; pause on hover. */
+  .marquee {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: lum-marquee 32s linear infinite;
+  }
+
+  .marquee:hover .marquee-track {
+    animation-play-state: paused;
+  }
+
+  /* Film-grain texture — cheap, static (no per-frame repaint), landing-only. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  }
+
+  /* Shine sweep — reusable diagonal light-bar hover, the button counterpart
+     to .surface-card-interactive's shine. Requires the element to already
+     be `relative overflow-hidden` (buttonVariants sets both). */
+  .shine-sweep::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 40%,
+      rgba(var(--lum-primary-rgb), 0.18) 50%,
+      transparent 60%
+    );
+    transform: translateX(-150%);
+    transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .shine-sweep:hover::before {
+    transform: translateX(150%);
+  }
+
+  /* Custom landing-page cursor — paired with components/motion/custom-cursor.tsx,
+     which toggles this class on <html> only on fine-pointer, non-reduced-motion
+     devices. !important beats element-level `cursor-pointer` utilities. */
+  .cursor-none-custom,
+  .cursor-none-custom * {
+    cursor: none !important;
+  }
+
+  /* Blueprint hairline grid — replaces gradient-blob ambience in the
+     full-bleed data-dense section shells. Static, cheap, fades to the
+     section edges so it never competes with content. */
+  .blueprint-grid {
+    background-image:
+      linear-gradient(to right, var(--border) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+    background-size: 56px 56px;
+    -webkit-mask-image: linear-gradient(to bottom, black, transparent 85%);
+    mask-image: linear-gradient(to bottom, black, transparent 85%);
+  }
+}
+
+@keyframes lum-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes lum-orbit {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
   }
 }
