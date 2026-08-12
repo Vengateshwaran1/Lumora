@@ -10,7 +10,6 @@ import { Card } from "@/shared/components/ui/card";
 
 import { useIndexingProgress } from "@/components/indexing/use-indexing-progress";
 import { RepoStatusBadge } from "./repo-status-badge";
-import { useReposStore } from "./store";
 
 function formatTimestamp(value: string | null): string {
   if (!value) return "—";
@@ -19,7 +18,6 @@ function formatTimestamp(value: string | null): string {
 
 export function RepoCard({ repositoryId }: { repositoryId: string }) {
   const queryClient = useQueryClient();
-  const removeTracked = useReposStore((state) => state.removeTracked);
   const { statusQuery } = useIndexingProgress(repositoryId);
 
   const indexMutation = useMutation({
@@ -49,13 +47,6 @@ export function RepoCard({ repositoryId }: { repositoryId: string }) {
         <p className="text-destructive text-sm">
           Couldn't load this repository ({statusQuery.error.message}).
         </p>
-        <button
-          type="button"
-          onClick={() => removeTracked(repositoryId)}
-          className="text-muted-foreground hover:text-foreground mt-2 text-xs underline"
-        >
-          Remove from list
-        </button>
       </Card>
     );
   }
@@ -116,13 +107,6 @@ export function RepoCard({ repositoryId }: { repositoryId: string }) {
           <RefreshCw className={`size-3.5 ${isActive ? "animate-spin" : ""}`} />
           {isActive ? "Indexing…" : neverIndexed ? "Index now" : "Re-index"}
         </Button>
-        <button
-          type="button"
-          onClick={() => removeTracked(repositoryId)}
-          className="text-muted-foreground hover:text-foreground ml-auto text-xs underline"
-        >
-          Remove
-        </button>
       </div>
     </Card>
   );

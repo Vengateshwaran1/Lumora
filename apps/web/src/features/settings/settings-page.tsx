@@ -1,16 +1,13 @@
-import { Trash2 } from "lucide-react";
-
 import { ThemeToggle } from "@/shared/components/theme-toggle";
-import { Button } from "@/shared/components/ui/button";
 import { Separator } from "@/shared/components/ui/separator";
 
-import { useReposStore } from "@/features/repos/store";
+import { useRepositories } from "@/shared/api/repositories";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
 export function SettingsPage() {
-  const tracked = useReposStore((state) => state.tracked);
-  const removeTracked = useReposStore((state) => state.removeTracked);
+  const reposQuery = useRepositories();
+  const repos = reposQuery.data ?? [];
 
   return (
     <div className="flex max-w-2xl flex-col gap-8">
@@ -34,17 +31,13 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-medium">Connected repositories</h2>
-        {tracked.length === 0 ? (
+        {repos.length === 0 ? (
           <p className="text-muted-foreground text-sm">No repositories connected yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {tracked.map((repo) => (
+            {repos.map((repo) => (
               <div key={repo.id} className="surface-card flex items-center justify-between p-3">
                 <span className="truncate font-mono text-xs">{repo.url}</span>
-                <Button variant="ghost" size="sm" onClick={() => removeTracked(repo.id)}>
-                  <Trash2 className="size-3.5" />
-                  Remove
-                </Button>
               </div>
             ))}
           </div>
@@ -62,7 +55,7 @@ export function SettingsPage() {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Milestone</span>
-            <span>M2 — Incremental indexing + webhooks</span>
+            <span>M3 — Planning Agent</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Authentication</span>

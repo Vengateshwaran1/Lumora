@@ -85,6 +85,8 @@ services:
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      PLANNING_PROVIDER: ${PLANNING_PROVIDER:-template}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -139,6 +141,8 @@ services:
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      PLANNING_PROVIDER: ${PLANNING_PROVIDER:-template}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

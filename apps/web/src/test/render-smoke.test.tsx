@@ -29,14 +29,14 @@ describe("application pages render without throwing", () => {
     expect(screen.getByText("Repositories")).toBeInTheDocument();
   });
 
-  it("Issues", async () => {
+  it("Issues (no repos connected)", () => {
     renderPage(<IssuesPage />);
-    expect(await screen.findByText(/Payment retry creates duplicate orders/)).toBeInTheDocument();
+    expect(screen.getByText("No repositories connected")).toBeInTheDocument();
   });
 
-  it("Issue detail", async () => {
+  it("Issue detail (missing repository context)", () => {
     renderPage(<IssueDetailPage />, { path: "/issues/:id", route: "/issues/issue-1" });
-    expect(await screen.findByText(/Payment retry creates duplicate orders/)).toBeInTheDocument();
+    expect(screen.getByText(/Missing repository context for this issue/)).toBeInTheDocument();
   });
 
   it("Knowledge (no repos connected)", () => {

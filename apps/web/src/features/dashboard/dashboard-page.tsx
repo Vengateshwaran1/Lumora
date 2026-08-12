@@ -1,10 +1,9 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Activity, FolderGit2, MessageSquare, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Reveal } from "@/components/motion/reveal";
-import { useReposStore } from "@/features/repos/store";
-import { getIndexStatus } from "@/shared/api/repositories";
+import { useRepositories } from "@/shared/api/repositories";
 import { ACTIVE_STATUSES } from "@/shared/api/types";
 import { PreviewBadge } from "@/shared/components/preview-badge";
 import { listMockActivity } from "@/shared/mocks/api";
@@ -30,20 +29,13 @@ function StatCard({
 }
 
 export function DashboardPage() {
-  const tracked = useReposStore((state) => state.tracked);
-  const statusResults = useQueries({
-    queries: tracked.map((repo) => ({
-      queryKey: ["repository", repo.id, "index-status"],
-      queryFn: () => getIndexStatus(repo.id),
-    })),
-  });
+  const reposQuery = useRepositories();
+  const repos = reposQuery.data ?? [];
   const activityQuery = useQuery({ queryKey: ["mock", "activity"], queryFn: listMockActivity });
 
-  const ready = statusResults.filter((r) => r.data?.status === "ready").length;
-  const active = statusResults.filter(
-    (r) => r.data && ACTIVE_STATUSES.includes(r.data.status),
-  ).length;
-  const totalChunks = statusResults.reduce((sum, r) => sum + (r.data?.indexed_chunk_count ?? 0), 0);
+  const ready = repos.filter((r) => r.status === "ready").length;
+  const active = repos.filter((r) => ACTIVE_STATUSES.includes(r.status)).length;
+  const totalChunks = repos.reduce((sum, r) => sum + r.indexed_chunk_count, 0);
 
   return (
     <div className="flex flex-col gap-8">
@@ -53,13 +45,13 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Repositories" value={tracked.length} icon={FolderGit2} />
+        <StatCard label="Repositories" value={repos.length} icon={FolderGit2} />
         <StatCard label="Ready" value={ready} icon={Activity} />
         <StatCard label="Indexing" value={active} icon={Activity} />
         <StatCard label="Indexed chunks" value={totalChunks} icon={Search} />
       </div>
 
-      {tracked.length === 0 ? (
+      {repos.length === 0 ? (
         <Reveal>
           <div className="border-border flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
             <FolderGit2 className="text-muted-foreground size-8" />

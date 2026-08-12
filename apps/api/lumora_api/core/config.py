@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     github_app_id: str | None = None
     github_app_private_key: str | None = None
 
+    # Personal access token fallback for private-repo clone + issue-fetch
+    # auth when no GitHub App installation is configured (Milestone 3 —
+    # see docs/architecture/adr for why a full GitHub App install flow,
+    # which needs a public OAuth callback URL, is out of scope here).
+    # Priority at use sites: installation_id (App) -> github_token (PAT) ->
+    # plain url (public repo). Never logged, never returned to the
+    # frontend.
+    github_token: str | None = None
+
     # Local storage for cloned repositories. Compose mounts a named volume
     # here; host-run dev defaults to a repo-relative gitignored directory.
     repo_storage_path: str = "./.data/repos"
@@ -79,6 +88,14 @@ class Settings(BaseSettings):
     # generated answers once Ollama + ollama_chat_model are available.
     chat_provider: Literal["ollama", "extractive"] = "extractive"
 
+    # Same "works offline by default" split as chat_provider, for the
+    # Planning Agent's structured-output calls. "template" builds a
+    # minimal valid ImplementationPlan from retrieved chunks with low
+    # confidence — no LLM, keeps CI/no-Ollama runs (and the planning graph
+    # unit tests) working. "ollama" uses Qwen via Ollama's structured
+    # (JSON-schema) generation mode.
+    planning_provider: Literal["ollama", "template"] = "template"
+
     # host.docker.internal resolves to the Docker host from inside a
     # container — Ollama runs on the host, not as a compose service.
     ollama_base_url: str = "http://localhost:11434"
@@ -97,6 +114,23 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         dsn = PostgresDsn.build(
             scheme="postgresql+asyncpg",
+            username=self.postgres_user,
+            password=self.postgres_password,
+            host=self.postgres_host,
+            port=self.postgres_port,
+            path=self.postgres_db,
+        )
+        return str(dsn)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def psycopg_dsn(self) -> str:
+        """Separate from `database_url` (asyncpg, used by SQLAlchemy)
+        because LangGraph's `AsyncPostgresSaver` is built on psycopg3, not
+        asyncpg — two drivers, two pools, both pointed at the same
+        database (Milestone 3's checkpointer; see core/container.py)."""
+        dsn = PostgresDsn.build(
+            scheme="postgresql",
             username=self.postgres_user,
             password=self.postgres_password,
             host=self.postgres_host,

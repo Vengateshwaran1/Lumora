@@ -15,6 +15,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lumora_api.api.v1.schemas import (
@@ -29,7 +30,10 @@ from lumora_api.api.v1.schemas import (
 )
 from lumora_api.application.chat.chat_with_repository import chat_with_repository
 from lumora_api.application.indexing.index_repository import index_repository
-from lumora_api.application.repositories.create_repository import create_repository
+from lumora_api.application.repositories.create_repository import (
+    RepositoryAlreadyExistsError,
+    create_repository,
+)
 from lumora_api.application.search.search_repository import search_repository
 from lumora_api.core.config import get_settings
 from lumora_api.core.container import (
@@ -51,9 +55,21 @@ from lumora_api.infrastructure.models import Repository
 router = APIRouter(prefix="/repositories", tags=["repositories"])
 
 
+@router.get("", response_model=list[RepositoryStatusResponse])
+async def list_repositories(session: DbSessionDep) -> list[Repository]:
+    """Backs the frontend's repo list/picker — before this, "which repos
+    exist" only lived in browser localStorage (see `features/repos/store.ts`,
+    now removed), invisible across tabs/browsers."""
+    result = await session.execute(select(Repository).order_by(Repository.created_at.desc()))
+    return list(result.scalars().all())
+
+
 @router.post("", response_model=RepositoryStatusResponse, status_code=201)
 async def register_repository(body: CreateRepositoryRequest, session: DbSessionDep) -> Repository:
-    return await create_repository(session, body.url)
+    try:
+        return await create_repository(session, body.url)
+    except RepositoryAlreadyExistsError as exc:
+        raise HTTPException(status_code=409, detail=f"{body.url} is already connected") from exc
 
 
 @router.post("/{repository_id}/index", response_model=RepositoryStatusResponse, status_code=202)
@@ -221,4 +237,5 @@ async def _run_indexing(repository_id: uuid.UUID) -> None:
             embedding_provider=get_embedding_provider(),
             vector_store=get_vector_store(),
             max_file_size_bytes=settings.max_file_size_bytes,
+            settings=settings,
         )

@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, CircleDot, FileCode2, GitPullRequest, Layers, Network } from "lucide-react";
+import { Activity, FileCode2, GitPullRequest, Layers, Network } from "lucide-react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { getIndexStatus } from "@/shared/api/repositories";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 
 import { SearchPanel } from "@/components/knowledge/search-panel";
+import { IssueList } from "@/features/issues/issue-list";
 import { RepoStatusBadge } from "../repo-status-badge";
 import { MockTab } from "./mock-tab";
 import { OverviewTab } from "./overview-tab";
@@ -83,11 +84,7 @@ export function RepositoryDetailPage() {
           />
         </TabsContent>
         <TabsContent value="issues">
-          <MockTab
-            icon={CircleDot}
-            title="Issues"
-            description="Issue sync and issue-to-plan generation arrive with the Planning Agent (M3)."
-          />
+          <IssueList repositoryId={id} />
         </TabsContent>
         <TabsContent value="pull-requests">
           <MockTab

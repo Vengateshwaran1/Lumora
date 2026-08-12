@@ -12,10 +12,15 @@ services depend on functions here rather than reaching into
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Any
+
+if TYPE_CHECKING:
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg_pool import AsyncConnectionPool
 
 from arq.connections import ArqRedis
 from fastapi import Depends, Request
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lumora_api.application.jobs.queue import JobQueue
@@ -24,10 +29,13 @@ from lumora_api.infrastructure.database import get_session_factory
 from lumora_api.infrastructure.embeddings.base import EmbeddingProvider
 from lumora_api.infrastructure.embeddings.deterministic import DeterministicEmbeddingProvider
 from lumora_api.infrastructure.embeddings.ollama import OllamaEmbeddingProvider
+from lumora_api.infrastructure.github.issues_client import GitHubIssuesClient
 from lumora_api.infrastructure.jobs.arq_queue import ArqJobQueue
 from lumora_api.infrastructure.llm.base import ChatProvider
 from lumora_api.infrastructure.llm.extractive import ExtractiveChatProvider
 from lumora_api.infrastructure.llm.ollama import OllamaChatProvider
+from lumora_api.infrastructure.llm.planning import PlanningProvider
+from lumora_api.infrastructure.llm.template_planning import TemplatePlanningProvider
 from lumora_api.infrastructure.retrieval.reranker.base import Reranker
 from lumora_api.infrastructure.retrieval.reranker.noop import NoOpReranker
 from lumora_api.infrastructure.vcs.git_service import GitService
@@ -69,6 +77,21 @@ def get_chat_provider() -> ChatProvider:
 
 
 @lru_cache
+def get_planning_provider() -> PlanningProvider:
+    settings = get_settings()
+    if settings.planning_provider == "ollama":
+        from lumora_api.infrastructure.llm.ollama_planning import OllamaPlanningProvider
+
+        return OllamaPlanningProvider(settings.ollama_base_url, settings.ollama_chat_model)
+    return TemplatePlanningProvider()
+
+
+@lru_cache
+def get_github_issues_client() -> GitHubIssuesClient:
+    return GitHubIssuesClient()
+
+
+@lru_cache
 def get_reranker() -> Reranker:
     settings = get_settings()
     if settings.reranker_provider == "cross_encoder":
@@ -88,6 +111,8 @@ def get_vector_store() -> QdrantVectorStore:
 GitServiceDep = Annotated[GitService, Depends(get_git_service)]
 EmbeddingProviderDep = Annotated[EmbeddingProvider, Depends(get_embedding_provider)]
 ChatProviderDep = Annotated[ChatProvider, Depends(get_chat_provider)]
+PlanningProviderDep = Annotated[PlanningProvider, Depends(get_planning_provider)]
+GitHubIssuesClientDep = Annotated[GitHubIssuesClient, Depends(get_github_issues_client)]
 RerankerDep = Annotated[Reranker, Depends(get_reranker)]
 VectorStoreDep = Annotated[QdrantVectorStore, Depends(get_vector_store)]
 
@@ -109,3 +134,49 @@ def get_job_queue(redis: ArqRedisDep) -> JobQueue:
 
 
 JobQueueDep = Annotated[JobQueue, Depends(get_job_queue)]
+
+
+async def get_checkpointer(request: Request) -> BaseCheckpointSaver[Any]:
+    """The LangGraph Postgres checkpointer, same `app.state`-stashed-at-
+    lifespan shape as `get_arq_redis` above (its own pool + `.setup()` call
+    are async, so it can't be a plain `@lru_cache` factory either). Tests
+    that don't need real graph persistence override this dependency
+    directly — `tests/conftest.py`'s `client` fixture runs without
+    lifespan, same reason `get_job_queue` is overridden there."""
+    return request.app.state.checkpointer  # type: ignore[no-any-return]
+
+
+CheckpointerDep = Annotated[BaseCheckpointSaver[Any], Depends(get_checkpointer)]
+
+
+async def build_checkpointer() -> tuple["AsyncConnectionPool", "AsyncPostgresSaver"]:
+    """Creates the psycopg pool + `AsyncPostgresSaver` and runs its
+    `.setup()` (creates LangGraph's own checkpoint tables — idempotent,
+    safe to call on every process start). Called once at API startup
+    (`main.py` lifespan) and once at worker startup
+    (`workers/settings.py`), each with its own pool — deliberately a
+    documented exception to ARCHITECTURE.md §12's "migrations never run on
+    app startup": this is LangGraph-owned infrastructure, not an
+    application migration, and has no separate Alembic-style deploy step
+    of its own to run it from instead.
+
+    Returns the pool alongside the saver so callers can close it at
+    shutdown — `AsyncPostgresSaver` doesn't own the pool's lifecycle."""
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg_pool import AsyncConnectionPool
+
+    settings = get_settings()
+    pool = AsyncConnectionPool(
+        conninfo=settings.psycopg_dsn,
+        max_size=10,
+        kwargs={"autocommit": True, "prepare_threshold": 0},
+        open=False,
+    )
+    await pool.open()
+    # psycopg_pool's default row factory is positional-tuple-typed;
+    # AsyncPostgresSaver's stubs want a dict-row pool. It manages its own
+    # cursors/row factory internally regardless — this is a stub mismatch,
+    # not a real runtime issue.
+    checkpointer = AsyncPostgresSaver(pool)  # type: ignore[arg-type]
+    await checkpointer.setup()
+    return pool, checkpointer

@@ -55,11 +55,13 @@ from lumora_api.application.indexing.file_indexer import (
 )
 from lumora_api.application.indexing.index_repository import index_repository
 from lumora_api.application.jobs.events import EventPublisher
+from lumora_api.core.config import Settings, get_settings
 from lumora_api.core.time import utcnow
 from lumora_api.domain.file_filter import is_safe_relative_path, looks_binary
 from lumora_api.domain.git_diff import DiffEntry, DiffStatus
 from lumora_api.domain.language import SUPPORTED_LANGUAGES, detect_language
 from lumora_api.infrastructure.embeddings.base import EmbeddingProvider
+from lumora_api.infrastructure.github.clone_auth import resolve_clone_url
 from lumora_api.infrastructure.models import Chunk, IndexedFile, Repository, RepositoryStatus
 from lumora_api.infrastructure.vcs.git_service import GitService
 from lumora_api.infrastructure.vector_store.qdrant_store import QdrantVectorStore
@@ -93,6 +95,7 @@ async def incremental_index_repository(
     embedding_provider: EmbeddingProvider,
     vector_store: QdrantVectorStore,
     max_file_size_bytes: int,
+    settings: Settings | None = None,
     event_publisher: EventPublisher | None = None,
 ) -> IncrementalIndexStats:
     repository = await session.get(Repository, repository_id)
@@ -117,6 +120,7 @@ async def incremental_index_repository(
             embedding_provider=embedding_provider,
             vector_store=vector_store,
             max_file_size_bytes=max_file_size_bytes,
+            settings=settings,
         )
         return IncrementalIndexStats(
             base_sha=base_sha, after_sha=after_sha, fell_back_to_full_index=True
@@ -124,8 +128,10 @@ async def incremental_index_repository(
 
     await _acquire_repo_lock(session, repository_id)
     try:
+        clone_url = await resolve_clone_url(repository, settings or get_settings())
         return await _run_incremental(
             repository=repository,
+            clone_url=clone_url,
             base_sha=base_sha,
             after_sha=after_sha,
             session=session,
@@ -142,6 +148,7 @@ async def incremental_index_repository(
 async def _run_incremental(
     *,
     repository: Repository,
+    clone_url: str,
     base_sha: str,
     after_sha: str,
     session: AsyncSession,
@@ -160,8 +167,8 @@ async def _run_incremental(
     await session.commit()
 
     try:
-        local_path = git_service.fetch_commit(repository_id, repository.url, base_sha)
-        git_service.fetch_commit(repository_id, repository.url, after_sha)
+        local_path = git_service.fetch_commit(repository_id, clone_url, base_sha)
+        git_service.fetch_commit(repository_id, clone_url, after_sha)
         diff_entries = git_service.diff_name_status(local_path, base_sha, after_sha)
         stats.files_discovered = len(diff_entries)
         if event_publisher is not None:

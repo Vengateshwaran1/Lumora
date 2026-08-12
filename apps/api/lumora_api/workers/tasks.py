@@ -19,6 +19,9 @@ import time
 import uuid
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from lumora_api.application.graph.build_symbol_graph import build_symbol_graph
 from lumora_api.application.indexing.incremental_index_repository import (
     incremental_index_repository,
 )
@@ -48,6 +51,7 @@ async def run_full_index(ctx: dict[str, Any], repository_id_str: str) -> dict[st
                 embedding_provider=get_embedding_provider(),
                 vector_store=get_vector_store(),
                 max_file_size_bytes=settings.max_file_size_bytes,
+                settings=settings,
             )
     except Exception as exc:
         await events.publish(
@@ -60,6 +64,10 @@ async def run_full_index(ctx: dict[str, Any], repository_id_str: str) -> dict[st
         event="index.completed",
         data={"duration_seconds": time.monotonic() - started},
     )
+
+    async with session_factory() as session:
+        await _rebuild_symbol_graph(repository_id, session)
+
     return {"repository_id": repository_id_str}
 
 
@@ -92,6 +100,7 @@ async def run_incremental_index(
                 embedding_provider=get_embedding_provider(),
                 vector_store=get_vector_store(),
                 max_file_size_bytes=settings.max_file_size_bytes,
+                settings=settings,
                 event_publisher=events,
             )
     except Exception as exc:
@@ -129,4 +138,22 @@ async def run_incremental_index(
         stats.chunks_deleted,
         len(stats.errors),
     )
+
+    if not stats.no_op:
+        async with session_factory() as session:
+            await _rebuild_symbol_graph(repository_id, session)
+
     return {"repository_id": repository_id_str, "delivery_id": delivery_id_str}
+
+
+async def _rebuild_symbol_graph(repository_id: uuid.UUID, session: AsyncSession) -> None:
+    """Additive, best-effort step appended after both index job types
+    (Milestone 3 §10) — deliberately doesn't touch index_repository/
+    incremental_index_repository's own logic or tested stats contract. A
+    failure here must not fail the indexing job itself (the repo is
+    already `ready`; a stale/missing symbol graph just means the planning
+    agent rebuilds it lazily on first use — see agents/planning/graph.py)."""
+    try:
+        await build_symbol_graph(repository_id=repository_id, session=session)
+    except Exception:
+        logger.exception("Symbol graph build failed for repository %s", repository_id)

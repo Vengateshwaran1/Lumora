@@ -3,10 +3,11 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { SearchPanel } from "@/components/knowledge/search-panel";
 import { RepositorySelect } from "@/components/repository-select";
-import { useReposStore } from "@/features/repos/store";
+import { useRepositories } from "@/shared/api/repositories";
 
 export function KnowledgePage() {
-  const tracked = useReposStore((state) => state.tracked);
+  const reposQuery = useRepositories();
+  const repos = reposQuery.data ?? [];
   const [searchParams, setSearchParams] = useSearchParams();
   const repositoryId = searchParams.get("repo");
 
@@ -19,7 +20,7 @@ export function KnowledgePage() {
         </p>
       </div>
 
-      {tracked.length === 0 ? (
+      {repos.length === 0 ? (
         <div className="border-border flex flex-col items-center gap-2 rounded-lg border border-dashed py-16 text-center">
           <Search className="text-muted-foreground size-8" />
           <p className="text-foreground text-sm font-medium">No repositories connected</p>

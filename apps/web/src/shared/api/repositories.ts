@@ -1,6 +1,19 @@
+import { useQuery } from "@tanstack/react-query";
+
 import { apiFetch } from "@/shared/lib/api-client";
 
 import type { ChatResponse, RepositoryStatusResponse, SearchResponse } from "./types";
+
+export function listRepositories(): Promise<RepositoryStatusResponse[]> {
+  return apiFetch<RepositoryStatusResponse[]>("/repositories");
+}
+
+/** All connected repositories — server state, replaces the old
+ * `features/repos/store.ts` localStorage stopgap now that `GET /repositories`
+ * exists. */
+export function useRepositories() {
+  return useQuery({ queryKey: ["repositories"], queryFn: listRepositories });
+}
 
 export function registerRepository(url: string): Promise<RepositoryStatusResponse> {
   return apiFetch<RepositoryStatusResponse>("/repositories", {

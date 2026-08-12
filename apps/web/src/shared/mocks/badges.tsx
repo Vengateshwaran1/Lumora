@@ -1,13 +1,6 @@
 import { StatusIndicator, type SignalTone } from "@/components/motion/status-indicator";
 
-import type { AgentRunStatus, IssueStatus, PrStatus, ReviewStatus } from "./types";
-
-const ISSUE_TONE: Record<IssueStatus, SignalTone> = {
-  open: "neutral",
-  planned: "ai-activity",
-  in_progress: "engineering",
-  closed: "success",
-};
+import type { PrStatus, ReviewStatus } from "./types";
 
 const PR_TONE: Record<PrStatus, SignalTone> = {
   draft: "neutral",
@@ -15,19 +8,6 @@ const PR_TONE: Record<PrStatus, SignalTone> = {
   approved: "success",
   merged: "ai-activity",
   closed: "error",
-};
-
-const RUN_TONE: Record<AgentRunStatus, SignalTone> = {
-  queued: "neutral",
-  planning: "ai-activity",
-  retrieving: "ai-activity",
-  coding: "ai-activity",
-  testing: "ai-activity",
-  debugging: "ai-activity",
-  reviewing: "ai-activity",
-  awaiting_approval: "approval",
-  completed: "success",
-  failed: "error",
 };
 
 const REVIEW_TONE: Record<ReviewStatus, SignalTone> = {
@@ -43,17 +23,8 @@ function label(value: string): string {
     .join(" ");
 }
 
-export function IssueStatusBadge({ status }: { status: IssueStatus }) {
-  return <StatusIndicator tone={ISSUE_TONE[status]} label={label(status)} />;
-}
-
 export function PrStatusBadge({ status }: { status: PrStatus }) {
   return <StatusIndicator tone={PR_TONE[status]} label={label(status)} />;
-}
-
-export function RunStatusBadge({ status }: { status: AgentRunStatus }) {
-  const active = !["queued", "completed", "failed"].includes(status);
-  return <StatusIndicator tone={RUN_TONE[status]} label={label(status)} pulse={active} />;
 }
 
 export function ReviewStatusBadge({ status }: { status: ReviewStatus }) {

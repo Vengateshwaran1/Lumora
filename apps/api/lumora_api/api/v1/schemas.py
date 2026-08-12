@@ -6,10 +6,11 @@ transport-shape definitions don't crowd the endpoint logic.
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-from lumora_api.infrastructure.models import RepositoryStatus
+from lumora_api.infrastructure.models import RepositoryStatus, RunStatus, RunType
 
 
 class CreateRepositoryRequest(BaseModel):
@@ -70,3 +71,55 @@ class Citation(BaseModel):
 class ChatResponse(BaseModel):
     answer: str
     citations: list[Citation]
+
+
+class IssueResponse(BaseModel):
+    id: uuid.UUID
+    repository_id: uuid.UUID
+    number: int
+    title: str
+    body: str | None
+    author: str | None
+    labels: list[str]
+    state: str
+    html_url: str
+    github_created_at: datetime | None
+    github_updated_at: datetime | None
+    github_closed_at: datetime | None
+    synced_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class IssueSyncResponse(BaseModel):
+    created: int
+    updated: int
+
+
+class RunSummaryResponse(BaseModel):
+    """Returned by the trigger-plan/regenerate endpoints — just enough for
+    the frontend to redirect to `/app/runs/{run_id}` and start polling."""
+
+    run_id: uuid.UUID
+    status: RunStatus
+
+
+class RunResponse(BaseModel):
+    id: uuid.UUID
+    repository_id: uuid.UUID
+    issue_id: uuid.UUID | None
+    run_type: RunType
+    status: RunStatus
+    implementation_plan: dict[str, Any] | None
+    validation_errors: list[str]
+    metrics: dict[str, Any]
+    error_message: str | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class RunDecisionRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=2000)

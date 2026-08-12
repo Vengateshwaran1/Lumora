@@ -1,26 +1,31 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ApiError } from "@/shared/lib/api-client";
 import { registerRepository } from "@/shared/api/repositories";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 
-import { useReposStore } from "./store";
-
 export function ConnectRepoForm() {
   const [url, setUrl] = useState("");
-  const addTracked = useReposStore((state) => state.addTracked);
+  const queryClient = useQueryClient();
 
   const registerMutation = useMutation({
     mutationFn: registerRepository,
     onSuccess: (repo) => {
-      addTracked({ id: repo.id, url: repo.url });
+      void queryClient.invalidateQueries({ queryKey: ["repositories"] });
       setUrl("");
       toast.success(`Connected ${repo.name}`);
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        toast.error("That repository is already connected.");
+      } else {
+        toast.error(error.message);
+      }
+    },
   });
 
   return (

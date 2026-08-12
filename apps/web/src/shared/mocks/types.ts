@@ -1,25 +1,9 @@
-/** Types for the M3+ feature previews (issues, PRs, agent runs, reviews,
- * activity beyond repo-level). No backend exists for any of this yet —
- * see `shared/mocks/data.ts` and `shared/mocks/api.ts`. Keep every consumer
- * of these types marked with `<PreviewBadge />` so it's never mistaken for
- * live data. */
-
-export type IssueStatus = "open" | "planned" | "in_progress" | "closed";
-export type IssuePriority = "low" | "medium" | "high";
-
-export interface MockIssue {
-  id: string;
-  number: number;
-  title: string;
-  description: string;
-  status: IssueStatus;
-  priority: IssuePriority;
-  repository: string;
-  labels: string[];
-  author: string;
-  createdAt: string;
-  updatedAt: string;
-}
+/** Types for the M4+ feature previews (PRs, reviews, activity beyond
+ * repo-level). No backend exists for any of this yet — see
+ * `shared/mocks/data.ts` and `shared/mocks/api.ts`. Keep every consumer of
+ * these types marked with `<PreviewBadge />` so it's never mistaken for live
+ * data. Issues and agent runs went live in M3 — see `shared/api/issues.ts`,
+ * `shared/api/runs.ts`, and `features/issues`/`features/runs`. */
 
 export type PrStatus = "draft" | "open" | "approved" | "merged" | "closed";
 
@@ -38,36 +22,6 @@ export interface MockPullRequest {
   deletions: number;
   checks: { passed: number; failed: number; pending: number };
   issueId: string | null;
-}
-
-export type AgentRunStatus =
-  | "queued"
-  | "planning"
-  | "retrieving"
-  | "coding"
-  | "testing"
-  | "debugging"
-  | "reviewing"
-  | "awaiting_approval"
-  | "completed"
-  | "failed";
-
-export interface AgentRunStep {
-  name: string;
-  status: "pending" | "active" | "done" | "failed";
-  startedAt: string | null;
-  completedAt: string | null;
-}
-
-export interface MockAgentRun {
-  id: string;
-  repository: string;
-  issueId: string | null;
-  status: AgentRunStatus;
-  currentAgent: string | null;
-  startedAt: string;
-  completedAt: string | null;
-  steps: AgentRunStep[];
 }
 
 export type ReviewStatus = "pending" | "approved" | "changes_requested";

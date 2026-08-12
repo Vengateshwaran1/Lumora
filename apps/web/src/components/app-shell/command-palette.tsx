@@ -2,7 +2,7 @@ import { FolderGit2 } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { useReposStore } from "@/features/repos/store";
+import { useRepositories } from "@/shared/api/repositories";
 import {
   CommandDialog,
   CommandEmpty,
@@ -21,7 +21,8 @@ export function CommandPalette() {
   const setOpen = useCommandPaletteStore((state) => state.setOpen);
   const toggle = useCommandPaletteStore((state) => state.toggle);
   const navigate = useNavigate();
-  const tracked = useReposStore((state) => state.tracked);
+  const reposQuery = useRepositories();
+  const repos = reposQuery.data ?? [];
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -52,11 +53,11 @@ export function CommandPalette() {
             </CommandItem>
           ))}
         </CommandGroup>
-        {tracked.length > 0 ? (
+        {repos.length > 0 ? (
           <>
             <CommandSeparator />
             <CommandGroup heading="Repositories">
-              {tracked.map((repo) => (
+              {repos.map((repo) => (
                 <CommandItem
                   key={repo.id}
                   value={repo.url}

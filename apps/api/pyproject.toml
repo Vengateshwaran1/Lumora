@@ -23,6 +23,9 @@ dependencies = [
   "redis>=5.0",
   "pyjwt>=2.10",
   "cryptography>=43.0",
+  "langgraph>=0.2",
+  "langgraph-checkpoint-postgres>=2.0",
+  "psycopg[binary,pool]>=3.2",
 ]
 
 [dependency-groups]
@@ -42,6 +45,20 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["lumora_api"]
+
+# sentence-transformers pulls torch transitively (for the optional
+# cross-encoder reranker — off by default, RERANKER_PROVIDER=none). The
+# default PyPI torch wheel bundles the full CUDA stack (~2GB of
+# nvidia-*/torch downloads) even though nothing here uses a GPU — pin to
+# PyTorch's CPU-only wheel index instead, which is both smaller and
+# actually correct for this deployment target.
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 # --- Ruff (linting only — Black owns formatting, see [tool.black]) ---
 [tool.ruff]
@@ -97,6 +114,19 @@ disallow_any_generics = false
 [[tool.mypy.overrides]]
 # No published type stubs / py.typed marker for this package.
 module = "rank_bm25.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# langgraph ships inline types but its strict-mode surface (generic
+# StateGraph/CompiledGraph typing, Command/interrupt) is still rough at
+# --strict — same treatment as rank_bm25 above rather than fighting
+# upstream type-completeness in application code.
+module = "langgraph.*"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "langgraph_checkpoint_postgres.*"
 ignore_missing_imports = true
 
 # --- pytest ---

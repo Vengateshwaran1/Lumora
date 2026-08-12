@@ -68,3 +68,21 @@ async def test_search_for_unknown_repository_returns_404(client):
 
     response = await client.post(f"/api/v1/repositories/{uuid.uuid4()}/search", json={"query": "x"})
     assert response.status_code == 404
+
+
+async def test_register_duplicate_url_returns_409(client, sample_repo_path):
+    first = await client.post("/api/v1/repositories", json={"url": sample_repo_path})
+    assert first.status_code == 201
+
+    second = await client.post("/api/v1/repositories", json={"url": sample_repo_path})
+    assert second.status_code == 409
+
+
+async def test_list_repositories_returns_registered_repos(client, sample_repo_path):
+    create_response = await client.post("/api/v1/repositories", json={"url": sample_repo_path})
+    repository_id = create_response.json()["id"]
+
+    list_response = await client.get("/api/v1/repositories")
+    assert list_response.status_code == 200
+    ids = [r["id"] for r in list_response.json()]
+    assert repository_id in ids

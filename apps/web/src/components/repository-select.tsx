@@ -1,7 +1,4 @@
-import { useQueries } from "@tanstack/react-query";
-
-import { useReposStore } from "@/features/repos/store";
-import { getIndexStatus } from "@/shared/api/repositories";
+import { useRepositories } from "@/shared/api/repositories";
 import {
   Select,
   SelectContent,
@@ -16,22 +13,16 @@ interface RepositorySelectProps {
   placeholder?: string;
 }
 
-/** Repo picker shared by the repo-scoped `/app/knowledge` and `/app/chat`
- * pages — those APIs are per-repository (`POST /repositories/{id}/search|chat`),
- * there's no global search/chat endpoint. */
+/** Repo picker shared by the repo-scoped `/app/knowledge`, `/app/chat`, and
+ * `/app/issues` pages — those APIs are per-repository, there's no global
+ * search/chat/issues endpoint. */
 export function RepositorySelect({
   value,
   onChange,
   placeholder = "Select a repository",
 }: RepositorySelectProps) {
-  const tracked = useReposStore((state) => state.tracked);
-
-  const results = useQueries({
-    queries: tracked.map((repo) => ({
-      queryKey: ["repository", repo.id, "index-status"],
-      queryFn: () => getIndexStatus(repo.id),
-    })),
-  });
+  const reposQuery = useRepositories();
+  const repos = reposQuery.data ?? [];
 
   return (
     <Select value={value ?? undefined} onValueChange={onChange}>
@@ -39,9 +30,9 @@ export function RepositorySelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {tracked.map((repo, index) => (
+        {repos.map((repo) => (
           <SelectItem key={repo.id} value={repo.id}>
-            {results[index]?.data?.name ?? repo.url}
+            {repo.name}
           </SelectItem>
         ))}
       </SelectContent>

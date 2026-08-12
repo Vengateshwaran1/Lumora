@@ -140,6 +140,38 @@ class GitService:
             repo.close()
         return parse_name_status(output)
 
+    def search_commit_log(
+        self, local_path: Path, term: str, max_results: int = 5
+    ) -> list[tuple[str, str]]:
+        """`git log --grep` over the local clone's history — read-only,
+        no network call, no GitHub API token needed (Milestone 3 §11's
+        "relevant historical context" node uses this for commit-message
+        search alongside `Issue` table search; there's no PR data synced
+        in this milestone). Returns `(short_sha, subject)` pairs, most
+        recent first. Empty on any git error (e.g. a shallow clone whose
+        single commit doesn't match) rather than raising — history search
+        is best-effort context, not a required step."""
+        try:
+            repo = Repo(str(local_path))
+        except Exception:
+            return []
+        try:
+            output: str = repo.git.log(
+                f"--grep={term}", "-i", "--oneline", f"-n{max_results}", "--format=%h %s"
+            )
+        except GitCommandError:
+            return []
+        finally:
+            repo.close()
+
+        results = []
+        for line in output.splitlines():
+            if not line.strip():
+                continue
+            sha, _, subject = line.partition(" ")
+            results.append((sha, subject))
+        return results
+
     def read_blob(self, local_path: Path, commit_sha: str, relative_path: str) -> bytes | None:
         """Read a file's content at a specific commit directly from the
         git object store — no working-tree checkout needed. Returns None

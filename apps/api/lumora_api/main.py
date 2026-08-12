@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from lumora_api.api.v1.router import api_router
 from lumora_api.api.webhooks import webhook_router
 from lumora_api.core.config import get_settings
+from lumora_api.core.container import build_checkpointer
 from lumora_api.core.logging import configure_logging
 
 
@@ -22,10 +23,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             host=settings.redis_host, port=settings.redis_port, database=settings.redis_db
         )
     )
+    checkpointer_pool, app.state.checkpointer = await build_checkpointer()
     try:
         yield
     finally:
         await app.state.arq_redis.close()
+        await checkpointer_pool.close()
 
 
 def create_app() -> FastAPI:

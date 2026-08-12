@@ -5,15 +5,17 @@ GitHub repository, answers questions about it with cited sources (RAG),
 plans and implements issues, reviews pull requests, runs tests, and debugs
 failures — orchestrated by a supervisor of specialized LangGraph agents.
 
-This repository is currently at **Milestone 2 — Incremental Indexing +
-GitHub Webhooks**: repository knowledge now stays synchronized with
-GitHub without a full re-index on every push — a webhook triggers a
-diff-based incremental re-index that touches only changed files and never
-re-embeds unchanged content. Milestone 1 (connect a repo, clone it, chunk
-it with AST-aware parsing, embed and index it, answer questions with
-file/line citations) is unchanged and still the foundation. Coding
-agents, planning agents, PR generation, and auth are not implemented yet —
-see [Roadmap](#roadmap) below.
+This repository is currently at **Milestone 3 — Issue Understanding +
+Planning Agent**: given a GitHub issue, the first real AI agent in this
+project retrieves relevant repository context (Milestone 1's hybrid
+search plus a heuristic code reference graph), grounds a structured
+implementation plan in that context, validates it, and pauses for human
+approval before anything else happens — strictly read-only, no code
+changes yet. Milestones 1 (connect a repo, clone it, chunk it with
+AST-aware parsing, embed and index it, answer questions with file/line
+citations) and 2 (incremental re-indexing, GitHub webhooks) are unchanged
+and still the foundation. Sandboxed coding/test/debug agents and PR
+generation are not implemented yet — see [Roadmap](#roadmap) below.
 
 ## Architecture Summary
 
@@ -23,10 +25,14 @@ for every decision, lives in
 Per-milestone implementation decisions (where a milestone deliberately
 simplifies the top-level design, and why) live in their own docs — see
 [`docs/architecture/milestone-1-rag-pipeline.md`](docs/architecture/milestone-1-rag-pipeline.md)
-for Milestone 1 and
+for Milestone 1,
 [`docs/architecture/milestone-2-incremental-indexing.md`](docs/architecture/milestone-2-incremental-indexing.md)
 for Milestone 2 (webhook setup, security, incremental-diff algorithm,
-failure/retry behavior). The short version of the overall architecture:
+failure/retry behavior), and
+[`docs/architecture/milestone-3-planning-agent.md`](docs/architecture/milestone-3-planning-agent.md)
+for Milestone 3 (the LangGraph planning agent, structured-output +
+retry, plan validation, human approval, and every scope deviation from
+the milestone brief). The short version of the overall architecture:
 
 - **Backend**: FastAPI, layered as Clean Architecture (`api → application →
   domain`, with `infrastructure` implementing ports). Agent orchestration
@@ -231,6 +237,39 @@ The repos page (`/repos`) shows each connected repository's index status,
 progress, last successful index time, and errors, with a manual
 **Re-index** button.
 
+## Issue Understanding & Planning Agent
+
+Given a synced GitHub issue, `POST /api/v1/repositories/{id}/issues/{issue_id}/plan`
+runs a LangGraph agent — read-only, no shell/file/git-write access — that
+analyzes the issue, retrieves repository context (hybrid search + a
+heuristic code reference graph + related issues/commits), and generates a
+structured implementation plan with file/line citations. The run pauses
+for human approval (`GET /runs/{id}` to poll, `POST /runs/{id}/approve` /
+`/reject` / `/regenerate`) before anything else happens — this milestone
+never writes code, commits, or opens a PR. Full design, scope deviations,
+and the ADR on why it's read-only:
+[milestone-3-planning-agent.md](docs/architecture/milestone-3-planning-agent.md).
+
+```bash
+# Works with zero setup by default (PLANNING_PROVIDER=template — same
+# offline-first convention as EMBEDDING_PROVIDER/CHAT_PROVIDER)
+GITHUB_TOKEN=<a PAT, only needed for private repos>
+
+# Sync issues, then trigger a plan
+curl -X POST http://localhost:8000/api/v1/repositories/<id>/issues/sync
+curl -X POST http://localhost:8000/api/v1/repositories/<id>/issues/<issue_id>/plan
+# → {"run_id": "...", "status": "queued"}
+
+curl http://localhost:8000/api/v1/runs/<run_id>          # poll for awaiting_approval
+curl -X POST http://localhost:8000/api/v1/runs/<run_id>/approve
+```
+
+Switching to `PLANNING_PROVIDER=ollama` (real model-generated plans,
+`OLLAMA_CHAT_MODEL` reused): before relying on it, run the manual eval
+harness (`uv run python -m tests.eval.planning_eval` from `apps/api`) to
+sanity-check affected-file accuracy and citation hallucination rate — not
+a CI gate, see the milestone doc's "Evaluation" section for why.
+
 ## Development Workflow
 
 All commands below assume dependencies are installed (`uv sync` in
@@ -278,7 +317,7 @@ for the full breakdown and verification gates.
 - [x] **M0 — Foundations**: monorepo, toolchains, Docker Compose dev stack, CI
 - [x] **M1 — Vertical slice**: index one repo → cited Q&A
 - [x] **M2 — Incremental indexing**: webhooks, diff-based re-index
-- [ ] **M3 — Planning agent**: issue → structured implementation plan
+- [x] **M3 — Planning agent**: issue → structured implementation plan
 - [ ] **M4 — Sandboxed execution**: Coding/Test/Debug agents, approval gate
 - [ ] **M5 — PR automation**: end-to-end issue → PR flow
 - [ ] **M6 — Multi-tenancy**: org/user model, RLS, auth hardening

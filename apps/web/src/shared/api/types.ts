@@ -83,3 +83,103 @@ export type RepositoryEvent =
       };
     }
   | { event: "index.failed"; data: { error: string } };
+
+/** GitHub issue synced for a repository (Planning Agent, M3). Mirrors
+ * `apps/api/.../schemas.py::IssueResponse`. */
+export interface IssueResponse {
+  id: string;
+  repository_id: string;
+  number: number;
+  title: string;
+  body: string | null;
+  author: string | null;
+  labels: string[];
+  state: string;
+  html_url: string;
+  github_created_at: string | null;
+  github_updated_at: string | null;
+  github_closed_at: string | null;
+  synced_at: string;
+}
+
+export type RunStatus =
+  | "queued"
+  | "running"
+  | "awaiting_approval"
+  | "plan_approved"
+  | "rejected"
+  | "failed";
+
+export type RunType = "planning";
+
+/** Statuses where the run should keep being polled. */
+export const ACTIVE_RUN_STATUSES: readonly RunStatus[] = ["queued", "running"];
+
+/** A citation grounding one claim in the implementation plan to a specific
+ * file range — distinct shape from the chat `Citation` above (no `symbol`/
+ * `kind`/`score`, has `claim`), so it's named separately to avoid clashing. */
+export interface PlanCitation {
+  file_path: string;
+  start_line: number;
+  end_line: number;
+  claim: string;
+}
+
+export interface ImplementationStep {
+  step_number: number;
+  description: string;
+  affected_files: string[];
+  affected_symbols: string[];
+  reason: string;
+  depends_on_steps: number[];
+  verification_method: string;
+}
+
+export interface ImplementationPlan {
+  summary: string;
+  understanding: string;
+  affected_files: string[];
+  affected_components: string[];
+  implementation_steps: ImplementationStep[];
+  dependencies: string[];
+  database_changes: string[];
+  api_changes: string[];
+  frontend_changes: string[];
+  testing_strategy: string;
+  security_considerations: string[];
+  performance_considerations: string[];
+  risks: string[];
+  assumptions: string[];
+  acceptance_criteria: string[];
+  citations: PlanCitation[];
+  confidence: number; // 0..1
+}
+
+export interface RunResponse {
+  id: string;
+  repository_id: string;
+  issue_id: string | null;
+  run_type: RunType;
+  status: RunStatus;
+  implementation_plan: ImplementationPlan | null;
+  validation_errors: string[];
+  metrics: Record<string, unknown>;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface RunSummaryResponse {
+  run_id: string;
+  status: RunStatus;
+}
+
+/** Payload published on the run SSE channel. Unlike `RepositoryEvent`, there
+ * is no fully-enumerated union yet — in practice only `"run.queued"` fires
+ * (published at enqueue time). Typed loosely on purpose; polling
+ * `GET /runs/{id}` remains the source of truth (see `run-events.ts`). */
+export interface RunEvent {
+  event: string;
+  data: Record<string, unknown>;
+}

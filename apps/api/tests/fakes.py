@@ -18,6 +18,7 @@ class EnqueuedIncrementalIndex:
 class FakeJobQueue:
     full_index_calls: list[uuid.UUID] = field(default_factory=list)
     incremental_index_calls: list[EnqueuedIncrementalIndex] = field(default_factory=list)
+    issue_plan_calls: list[uuid.UUID] = field(default_factory=list)
 
     async def enqueue_full_index(self, *, repository_id: uuid.UUID) -> None:
         self.full_index_calls.append(repository_id)
@@ -38,3 +39,6 @@ class FakeJobQueue:
                 delivery_id=delivery_id,
             )
         )
+
+    async def enqueue_issue_plan(self, *, run_id: uuid.UUID) -> None:
+        self.issue_plan_calls.append(run_id)

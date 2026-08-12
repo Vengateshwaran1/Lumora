@@ -40,10 +40,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lumora_api.application.indexing.file_indexer import delete_file, index_file_content
+from lumora_api.core.config import Settings, get_settings
 from lumora_api.core.time import utcnow as _utcnow
 from lumora_api.domain.file_filter import looks_binary
 from lumora_api.domain.language import SUPPORTED_LANGUAGES, detect_language
 from lumora_api.infrastructure.embeddings.base import EmbeddingProvider
+from lumora_api.infrastructure.github.clone_auth import resolve_clone_url
 from lumora_api.infrastructure.models import Chunk, IndexedFile, Repository, RepositoryStatus
 from lumora_api.infrastructure.vcs.git_service import GitService
 from lumora_api.infrastructure.vector_store.qdrant_store import QdrantVectorStore
@@ -59,6 +61,7 @@ async def index_repository(
     embedding_provider: EmbeddingProvider,
     vector_store: QdrantVectorStore,
     max_file_size_bytes: int,
+    settings: Settings | None = None,
 ) -> None:
     repository = await session.get(Repository, repository_id)
     if repository is None:
@@ -70,7 +73,8 @@ async def index_repository(
     await session.commit()
 
     try:
-        clone = await asyncio.to_thread(git_service.clone_or_update, repository_id, repository.url)
+        clone_url = await resolve_clone_url(repository, settings or get_settings())
+        clone = await asyncio.to_thread(git_service.clone_or_update, repository_id, clone_url)
         repository.local_path = str(clone.local_path)
         repository.default_branch = clone.default_branch
         repository.status = RepositoryStatus.INDEXING

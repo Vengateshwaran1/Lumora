@@ -12,7 +12,8 @@ import uuid
 from arq.connections import ArqRedis
 
 from lumora_api.infrastructure.jobs.redis_events import RedisEventPublisher
-from lumora_api.workers.task_names import RUN_FULL_INDEX, RUN_INCREMENTAL_INDEX
+from lumora_api.infrastructure.runs.run_events import RedisRunEventPublisher
+from lumora_api.workers.task_names import RUN_FULL_INDEX, RUN_INCREMENTAL_INDEX, RUN_ISSUE_PLAN
 
 
 class ArqJobQueue:
@@ -22,6 +23,7 @@ class ArqJobQueue:
         # doubles as an EventPublisher — no second Redis client needed just
         # to publish "queued" at enqueue time.
         self._events = RedisEventPublisher(redis)
+        self._run_events = RedisRunEventPublisher(redis)
 
     async def enqueue_full_index(self, *, repository_id: uuid.UUID) -> None:
         await self._redis.enqueue_job(RUN_FULL_INDEX, str(repository_id))
@@ -45,3 +47,7 @@ class ArqJobQueue:
         await self._events.publish(
             repository_id=repository_id, event="index.queued", data={"after_sha": after_sha}
         )
+
+    async def enqueue_issue_plan(self, *, run_id: uuid.UUID) -> None:
+        await self._redis.enqueue_job(RUN_ISSUE_PLAN, str(run_id))
+        await self._run_events.publish(run_id=run_id, event="run.queued", data={})

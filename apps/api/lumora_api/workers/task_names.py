@@ -6,3 +6,4 @@ in one doesn't silently produce a job neither side recognizes.
 
 RUN_FULL_INDEX = "run_full_index"
 RUN_INCREMENTAL_INDEX = "run_incremental_index"
+RUN_ISSUE_PLAN = "run_issue_plan"
