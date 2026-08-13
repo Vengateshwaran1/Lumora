@@ -16,6 +16,7 @@ dependencies = [
   "gitpython>=3.1.58",
   "rank-bm25>=0.2.2",
   "sentence-transformers>=5.7.0",
+  "torch",
   "httpx>=0.28.1",
   "pyyaml>=6.0.3",
   "qdrant-client>=1.19.0",
@@ -52,6 +53,11 @@ packages = ["lumora_api"]
 # nvidia-*/torch downloads) even though nothing here uses a GPU — pin to
 # PyTorch's CPU-only wheel index instead, which is both smaller and
 # actually correct for this deployment target.
+#
+# torch must also be listed as a direct dependency below: uv only honors
+# a tool.uv.sources index pin for direct dependencies — left as
+# transitive-only (via sentence-transformers), the pin is silently
+# ignored and uv resolves the CUDA build from plain PyPI instead.
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
 

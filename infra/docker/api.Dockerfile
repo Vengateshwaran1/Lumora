@@ -6,7 +6,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 # git: required at runtime by GitPython (infrastructure/vcs/git_service.py)
 # to clone/fetch repositories — not present in python:3.12-slim by default.
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+#
+# deb.debian.org's Fastly edge 403s from some networks (ISP-level CDN
+# block). ftp.debian.org mirrors the main archive on non-Fastly infra but
+# doesn't carry /debian-security — that one goes to security.debian.org,
+# which does.
+RUN sed -i \
+        -e 's#//deb\.debian\.org/debian-security#//security.debian.org/debian-security#g' \
+        -e 's#//deb\.debian\.org/debian#//ftp.debian.org/debian#g' \
+        /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
