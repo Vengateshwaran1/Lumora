@@ -35,6 +35,13 @@ COPY apps/api ./
 RUN uv sync --frozen --no-dev
 
 RUN useradd --create-home --uid 1000 lumora && chown -R lumora:lumora /app
+
+# repo_storage mounts here (see docker-compose.yml). A fresh named volume
+# is initialized from this path's ownership at first mount — without
+# this, it comes up root-owned and every clone fails with EACCES since
+# the process runs as lumora, not root.
+RUN mkdir -p /data/repos && chown -R lumora:lumora /data/repos
+
 USER lumora
 
 ENV PATH="/app/.venv/bin:${PATH}"
